@@ -1,11 +1,9 @@
 import { useFlowStore } from '@/store/flowStore';
-import { useUiStore } from '@/store/uiStore';
-import { X, Trophy, Star, Zap, Activity } from 'lucide-react';
+import { X, Trophy, Star, Activity } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export function ResultCard() {
     const { isResultOpen, setResultOpen, lastExecutionResult } = useFlowStore();
-    const { t } = useUiStore();
     const [animateScore, setAnimateScore] = useState(0);
 
     useEffect(() => {
