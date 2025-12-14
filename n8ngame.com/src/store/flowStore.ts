@@ -10,10 +10,12 @@ import {
 } from '@xyflow/react';
 import { AppNode } from '@/features/editor/types';
 import { executeBlueprint } from '@/features/engine/execution/loop';
+import { executeRemote } from '@/features/engine/remote/RemoteExecutor';
 import { Blueprint } from '@/features/engine/graph/types';
-import { ExecutionLog } from '@/features/engine/execution/types';
+import { ExecutionLog, DEFAULT_ENGINE_CONFIG } from '@/features/engine/execution/types';
 import { ProjectBlueprint, CURRENT_BLUEPRINT_VERSION } from '@/features/storage/types';
 import { Viewport } from '@xyflow/react';
+import { deriveConnectionState } from '@/features/engine/connectionLogic';
 
 interface FlowState {
     nodes: AppNode[];
@@ -25,6 +27,8 @@ interface FlowState {
     setNodes: (nodes: AppNode[]) => void;
 
     // Execution State
+    executionMode: 'local' | 'remote';
+    setExecutionMode: (mode: 'local' | 'remote') => void;
     isRunning: boolean;
     executionLogs: ExecutionLog[];
     runGraph: () => Promise<void>;
@@ -44,6 +48,8 @@ interface FlowState {
 export const useFlowStore = create<FlowState>((set, get) => ({
     nodes: [],
     edges: [],
+    executionMode: 'local',
+    setExecutionMode: (mode) => set({ executionMode: mode }),
     isRunning: false,
     executionLogs: [],
     pendingConnection: null,
@@ -70,46 +76,29 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     },
     onHandleClick: (nodeId, handleId, type) => {
         const { pendingConnection, edges } = get();
+        const action = { nodeId, handleId, type };
 
-        // 1. Start Connection
-        if (!pendingConnection) {
-            set({ pendingConnection: { nodeId, handleId, type } });
-            return;
-        }
+        // Use pure logic for state transition
+        const result = deriveConnectionState(pendingConnection, action);
 
-        // 2. Cancel (Click same node or same handle)
-        if (pendingConnection.nodeId === nodeId) {
+        if (result.status === 'pending') {
+            set({ pendingConnection: result.payload });
+        } else if (result.status === 'cancelled') {
             set({ pendingConnection: null });
-            return;
+        } else if (result.status === 'completed') {
+            const { source, target } = result.payload;
+            const connection = {
+                source: source.nodeId,
+                sourceHandle: source.handleId,
+                target: target.nodeId,
+                targetHandle: target.handleId,
+                animated: true,
+            };
+            set({
+                edges: addEdge(connection as Connection, edges),
+                pendingConnection: null,
+            });
         }
-
-        // 3. Complete Connection
-        // Check direction: Source -> Target or Target -> Source
-        if (pendingConnection.type === type) {
-            // Cannot connect same type (source-source or target-target)
-            // Just switch (or cancel? switching is friendlier)
-            set({ pendingConnection: { nodeId, handleId, type } });
-            return;
-        }
-
-        const source = pendingConnection.type === 'source' ? pendingConnection : { nodeId, handleId };
-        const target = pendingConnection.type === 'source' ? { nodeId, handleId } : pendingConnection;
-
-        // Create Connection
-        const connection = {
-            source: source.nodeId,
-            sourceHandle: source.handleId, // ReactFlow handles usually have IDs if multiple
-            target: target.nodeId,
-            targetHandle: target.handleId,
-            animated: true, // Default animated
-        };
-
-        // We use addEdge which handles duplicate checks basically,
-        // but we might want strict validation here if needed.
-        set({
-            edges: addEdge(connection as Connection, edges),
-            pendingConnection: null,
-        });
     },
     addNode: (node) => {
         set({
@@ -142,7 +131,16 @@ export const useFlowStore = create<FlowState>((set, get) => ({
         };
 
         try {
-            const result = await executeBlueprint(blueprint, { maxGas: 100 });
+            const { executionMode } = get();
+            const config = { maxGas: DEFAULT_ENGINE_CONFIG.maxGas };
+
+            let result;
+            if (executionMode === 'remote') {
+                result = await executeRemote(blueprint, config);
+            } else {
+                result = await executeBlueprint(blueprint, config);
+            }
+
             set({ executionLogs: result.logs });
         } catch (e: any) {
             set({

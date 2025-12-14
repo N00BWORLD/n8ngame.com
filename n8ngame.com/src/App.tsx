@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ReactFlow, Background, Controls, NodeTypes, ReactFlowProvider } from '@xyflow/react';
+import { ReactFlow, Background, Controls, NodeTypes, ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { TriggerNode } from '@/features/editor/nodes/TriggerNode';
 import { ActionNode } from '@/features/editor/nodes/ActionNode';
 import { VariableNode } from '@/features/editor/nodes/VariableNode';
@@ -29,8 +29,51 @@ function Flow() {
         setNodes(initialNodes as any);
     }, [setNodes]);
 
+    const onDragOver = (event: React.DragEvent) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+    };
+
+    const onDrop = (event: React.DragEvent) => {
+        event.preventDefault();
+
+        const type = event.dataTransfer.getData('application/reactflow');
+        if (!type) return;
+
+        // Correctly project screen coordinates to flow coordinates
+        // useReactFlow must be used inside ReactFlowProvider, which Flow is.
+        const position = screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+        });
+
+        const id = `${type}-${Date.now()}`;
+        const newNode = {
+            id,
+            type,
+            position,
+            data: { label: `New ${type.charAt(0).toUpperCase() + type.slice(1)}` },
+            selected: true,
+        };
+
+        const { addNode, nodes, setNodes } = useFlowStore.getState();
+
+        // Deselect others
+        const updatedNodes = nodes.map((n) => ({ ...n, selected: false }));
+        setNodes(updatedNodes as any);
+
+        addNode(newNode as any);
+    };
+
+    // Need screenToFlowPosition from useReactFlow
+    const { screenToFlowPosition } = useReactFlow();
+
     return (
-        <div style={{ height: '100vh', width: '100vw', backgroundColor: '#050510' }}>
+        <div
+            style={{ height: '100vh', width: '100vw', backgroundColor: '#050510' }}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+        >
             <ReactFlow
                 nodes={nodes}
                 edges={edges}

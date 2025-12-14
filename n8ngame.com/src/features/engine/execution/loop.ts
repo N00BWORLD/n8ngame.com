@@ -1,6 +1,6 @@
 import { Blueprint } from '../graph/types';
 import { analyzeGraph } from '../graph/analyzer';
-import { ExecutionConfig, ExecutionContext, NodeRuntime } from './types';
+import { DEFAULT_ENGINE_CONFIG, EngineResult, ExecutionConfig, ExecutionContext, NodeRuntime } from './types';
 import { triggerRuntime, actionRuntime, variableRuntime, getGasCost } from './runtimes';
 
 // Registry for Node Runtimes
@@ -16,8 +16,8 @@ export function registerRuntime(kind: string, runtime: NodeRuntime) {
 
 export async function executeBlueprint(
     blueprint: Blueprint,
-    config: ExecutionConfig
-): Promise<ExecutionContext> {
+    config: ExecutionConfig = DEFAULT_ENGINE_CONFIG
+): Promise<EngineResult> {
     // 1. Analyze Graph
     const analysis = analyzeGraph(blueprint);
 
@@ -25,27 +25,32 @@ export async function executeBlueprint(
     const context: ExecutionContext = {
         variables: { ...config.initialVariables },
         logs: [],
-        gasRemaining: config.maxGas ?? 100, // Default to 100 if not provided
+        gasRemaining: config.maxGas ?? DEFAULT_ENGINE_CONFIG.maxGas,
         status: 'running',
     };
 
     if (!analysis.success || !analysis.order) {
-        context.status = 'failed';
-        context.logs.push({
-            nodeId: 'system',
-            nodeKind: 'system',
-            timestamp: Date.now(),
-            gasUsed: 0,
-            error: analysis.error?.message || 'Graph analysis failed',
-        });
-        return context;
+        return {
+            logs: [{
+                nodeId: 'system',
+                nodeKind: 'system',
+                timestamp: Date.now(),
+                gasUsed: 0,
+                error: analysis.error?.message || 'Graph analysis failed',
+            }],
+            finalState: context.variables,
+            error: analysis.error?.message || 'Graph analysis failed'
+        };
     }
+
+    let executionError: string | undefined;
 
     // 2. Execution Loop
     for (const nodeId of analysis.order) {
         // Gas Check
         if (context.gasRemaining <= 0) {
             context.status = 'out_of_gas';
+            executionError = 'Out of gas';
             break;
         }
 
@@ -55,39 +60,34 @@ export async function executeBlueprint(
         const runtime = runtimeRegistry[node.kind];
         if (!runtime) {
             context.status = 'failed';
+            executionError = `No runtime found for node kind: ${node.kind}`;
             context.logs.push({
                 nodeId: node.id,
                 nodeKind: node.kind,
                 timestamp: Date.now(),
                 gasUsed: 0,
-                error: `No runtime found for node kind: ${node.kind}`,
+                error: executionError,
             });
             break;
         }
 
         try {
-            // Check Gas Cost BEFORE execution? Or After? 
-            // Usually we might check if we have enough gas to START.
-            // But requirement says "Gas Budget exceeded -> Stop".
-
             const gasCost = getGasCost(node.kind);
             if (context.gasRemaining < gasCost) {
                 context.status = 'out_of_gas';
-                // Log the attempt failure
+                executionError = `Out of gas. Required: ${gasCost}, Remaining: ${context.gasRemaining}`;
                 context.logs.push({
                     nodeId: node.id,
                     nodeKind: node.kind,
                     timestamp: Date.now(),
                     gasUsed: 0,
-                    error: `Out of gas. Required: ${gasCost}, Remaining: ${context.gasRemaining}`
+                    error: executionError
                 });
                 break;
             }
 
             // Execute Node
-            // const startTime = Date.now();
             const outputs = await runtime.execute(node, context);
-            // const duration = Date.now() - startTime;
 
             // Deduct Gas
             context.gasRemaining -= gasCost;
@@ -107,20 +107,21 @@ export async function executeBlueprint(
 
         } catch (error: any) {
             context.status = 'failed';
+            executionError = error.message || 'Unknown execution error';
             context.logs.push({
                 nodeId: node.id,
                 nodeKind: node.kind,
                 timestamp: Date.now(),
                 gasUsed: 0,
-                error: error.message || 'Unknown execution error',
+                error: executionError,
             });
             break;
         }
     }
 
-    if (context.status === 'running') {
-        context.status = 'completed';
-    }
-
-    return context;
+    return {
+        logs: context.logs,
+        finalState: context.variables,
+        error: executionError
+    };
 }

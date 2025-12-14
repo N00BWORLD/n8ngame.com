@@ -11,8 +11,8 @@ const NODE_TYPES = [
 
 export function NodePalette() {
     const { screenToFlowPosition } = useReactFlow<AppNode>();
-    const nodes = useFlowStore((state) => state.nodes);
-    const setNodes = useFlowStore((state) => state.setNodes);
+    // Removed unused setNodes hook usage since we use getState inside handler
+    // const setNodes = useFlowStore((state) => state.setNodes);
 
     const addNodeCenter = (type: 'trigger' | 'action' | 'variable', label: string) => {
         const id = `${type}-${Date.now()}`;
@@ -29,8 +29,13 @@ export function NodePalette() {
             selected: true,
         };
 
+        const { addNode, nodes, setNodes } = useFlowStore.getState();
+        // Deselect others first
         const updatedNodes = nodes.map((n) => ({ ...n, selected: false } as AppNode));
-        setNodes(updatedNodes.concat(newNode));
+        setNodes(updatedNodes);
+
+        // Add new node
+        addNode(newNode);
     };
 
     return (
@@ -38,8 +43,13 @@ export function NodePalette() {
             {NODE_TYPES.map((type) => (
                 <button
                     key={type.type}
+                    draggable
+                    onDragStart={(event) => {
+                        event.dataTransfer.setData('application/reactflow', type.type);
+                        event.dataTransfer.effectAllowed = 'move';
+                    }}
                     onClick={() => addNodeCenter(type.type, type.label)}
-                    className={`flex items-center gap-2 rounded-full px-4 py-2 cyber-button ${type.color}`}
+                    className={`flex items-center gap-2 rounded-full px-4 py-2 cyber-button ${type.color} cursor-grab active:cursor-grabbing`}
                 >
                     {type.icon}
                     <span className="text-sm font-medium">{type.label}</span>

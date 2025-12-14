@@ -1,0 +1,79 @@
+{
+    "name": "execute-blueprint",
+    "nodes": [
+        {
+            "parameters": {
+                "path": "execute-blueprint",
+                "responseMode": "responseNode",
+                "methods": "POST",
+                "options": {}
+            },
+            "id": "webhook-node",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                460,
+                460
+            ],
+            "webhookId": "execute-blueprint"
+        },
+        {
+            "parameters": {
+                "jsCode": "const body = items[0].json.body || items[0].json;\nconst blueprint = body.blueprint || {};\nconst nodes = blueprint.nodes || [];\nconst connections = blueprint.connections || [];\n\n// Simulate Processing\nconst nodeCount = Array.isArray(nodes) ? nodes.length : 0;\nconst edgeCount = Array.isArray(connections) ? connections.length : (typeof connections === 'object' ? Object.keys(connections).length : 0);\n\nconst logs = [\n  \"received blueprint\",\n  `nodes: ${nodeCount}`,\n  `edges: ${edgeCount}`,\n  \"simulated_gas_used: 10\"\n];\n\nconst result = {\n  score: 100,\n  status: \"simulated_success\"\n};\n\nreturn [{\n  json: {\n    ok: true,\n    logs,\n    result,\n    receivedAt: new Date().toISOString()\n  }\n}];"
+            },
+            "id": "code-node",
+            "name": "Process Blueprint",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 1,
+            "position": [
+                680,
+                460
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ $json }}",
+                "options": {}
+            },
+            "id": "respond-node",
+            "name": "Respond to Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                900,
+                460
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Process Blueprint",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Process Blueprint": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "pinData": {}
+}
