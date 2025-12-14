@@ -43,6 +43,28 @@ interface FlowState {
     toBlueprint: () => ProjectBlueprint;
     loadBlueprint: (blueprint: ProjectBlueprint) => void;
     setViewport: (viewport: Viewport) => void;
+
+    // Inventory State (Mission 11-E)
+    isInventoryOpen: boolean;
+    setInventoryOpen: (isOpen: boolean) => void;
+    inventoryTrigger: number; // Increment to signal refresh
+    refreshInventory: () => void;
+
+    // Mission State (Mission 11-F)
+    isMissionOpen: boolean;
+    setMissionOpen: (isOpen: boolean) => void;
+    missions: Array<{
+        id: number;
+        title: string;
+        desc: string;
+        status: 'locked' | 'active' | 'completed';
+        justCompleted?: boolean;
+    }>;
+    setMissions: (missions: any[]) => void;
+
+    // Help State (Mission 11-H)
+    isHelpOpen: boolean;
+    setHelpOpen: (isOpen: boolean) => void;
 }
 
 export const useFlowStore = create<FlowState>((set, get) => ({
@@ -53,6 +75,23 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     isRunning: false,
     executionLogs: [],
     pendingConnection: null,
+
+    // Inventory Defaults
+    isInventoryOpen: false,
+    setInventoryOpen: (isOpen) => set({ isInventoryOpen: isOpen }),
+    inventoryTrigger: 0,
+    refreshInventory: () => set((state) => ({ inventoryTrigger: state.inventoryTrigger + 1 })),
+
+    // Mission Defaults
+    isMissionOpen: false,
+    setMissionOpen: (isOpen) => set({ isMissionOpen: isOpen }),
+    missions: [],
+    setMissions: (missions) => set({ missions }),
+
+    // Help Defaults
+    isHelpOpen: false,
+    setHelpOpen: (isOpen) => set({ isHelpOpen: isOpen }),
+
 
     onPaneClick: () => {
         set({ pendingConnection: null });

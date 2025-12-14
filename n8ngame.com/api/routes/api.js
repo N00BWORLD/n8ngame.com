@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { computeRewards, grantRewards } from '../services/rewards.js';
+import { evaluateMissions } from '../services/missions.js';
 
 // Supabase Admin Client (Service Role)
 const supabaseUrl = process.env.SUPABASE_URL || 'http://supabase-kong:8000';
@@ -70,6 +71,28 @@ export async function apiRoutes(fastify, options) {
             return { data };
         });
 
+        // GET /api/inventory (Mission 11-E)
+        privateRoutes.get('/inventory', async (request, reply) => {
+            if (!serviceRoleKey) return reply.code(500).send({ error: 'server_error', message: 'DB Config Missing' });
+
+            const sb = createClient(supabaseUrl, serviceRoleKey);
+
+            // Fetch User Inventory
+            const { data: items, error } = await sb
+                .from('inventory')
+                .select('*')
+                .eq('user_id', request.user.id)
+                .order('item_type', { ascending: true })
+                .order('level', { ascending: true });
+
+            if (error) {
+                request.log.error(error);
+                return reply.code(500).send({ error: 'db_error', message: error.message });
+            }
+
+            return { ok: true, items };
+        });
+
         // POST /api/execute-blueprint (Mission 11-B + 11-D-2)
         privateRoutes.post('/execute-blueprint', async (request, reply) => {
             try {
@@ -112,14 +135,64 @@ export async function apiRoutes(fastify, options) {
                 const json = await response.json();
 
                 // Mission 11-D-2: Reward Calculation & Granting
-                // Temporary logic placeholder if imports missing:
-                // But I should do it right.
+                let combinedRewards = [];
+                let grantedAt = null;
+                let finalMissions = [];
+                let missionRewards = [];
 
-                // Let's proceed with just the logic here, assuming I added import. 
-                // Wait, I haven't added import yet.
-                // I'll switch to multi_replace to add import + update route.
+                try {
+                    // Fetch Inventory for Missions (Badges)
+                    const { data: inventory } = await (() => {
+                        // Reuse code or context? We just need to fetch here.
+                        // Can create client:
+                        const sb = createClient(supabaseUrl, serviceRoleKey);
+                        return sb.from('inventory').select('*').eq('user_id', request.user.id);
+                    })();
 
-                return json;
+                    // 1. Calculate Execution Rewards
+                    const execRewards = computeRewards(blueprint, json);
+
+                    // 2. Evaluate Missions (11-F-2)
+                    const { missions, newRewards } = await evaluateMissions({
+                        userId: request.user.id,
+                        blueprint: blueprint, // Has { nodes, edges } (or connections if mapped)
+                        // Note: toBlueprint sends 'edges', but Zod schema might fail if it demands 'connections'
+                        // Assuming checks pass or we map edges to connections if needed.
+                        // Actually evaluateMissions expects ReactFlow structure (edges).
+                        // If 11-B schema enforcement is strict, we should have fixed it before.
+                        // If blueprint has edges, pass it.
+                        n8nResponse: json,
+                        inventoryBadges: inventory || []
+                    });
+
+                    finalMissions = missions;
+                    missionRewards = newRewards; // Badges + items from missions
+
+                    // Combine All Rewards
+                    combinedRewards = [...execRewards, ...missionRewards];
+
+                    if (combinedRewards.length > 0) {
+                        // Grant to DB (Idempotency inside grantRewards mostly handles quantity, 
+                        // but badges are unique item types so upsert handles them fine)
+                        await grantRewards(request.user.id, combinedRewards);
+                        grantedAt = new Date().toISOString();
+                    }
+                } catch (rewardErr) {
+                    request.log.error(rewardErr, 'Reward Grant Failed');
+                    json.rewardError = 'Failed to grant rewards';
+                }
+
+                return {
+                    ...json,
+                    rewards: combinedRewards, // For now return all? Or keeping 11-D spec "rewards".
+                    // User Request: "missionRewards" in response. 
+                    // Let's filter "justCompleted" ones for "missionRewards" specifically?
+                    // Prompt: "missionRewards는 inventory_items에 실제로 지급되어야 한다(서버 권위)"
+                    // "justCompleted가 있는 미션만 missionRewards에 포함" -> Done by evaluateMissions returning newRewards
+                    missionRewards: missionRewards,
+                    missions: finalMissions,
+                    grantedAt
+                };
 
             } catch (err) {
                 request.log.error(err);

@@ -1,10 +1,11 @@
-import { Play, RotateCcw, Settings, Globe, Cpu, Zap } from 'lucide-react';
+
+import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle } from 'lucide-react';
 import { useFlowStore } from '@/store/flowStore';
 import { useState } from 'react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
 
 export function RunToolbar() {
-    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint } = useFlowStore();
+    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen } = useFlowStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isN8NRunning, setIsN8NRunning] = useState(false);
 
@@ -47,26 +48,46 @@ export function RunToolbar() {
                 error: msg
             }));
 
-            // Mission 11-D-2: Result Rewards
+            let logOffset = 100;
+
+            // Mission 11-D-2: Execution Rewards
             if (data.rewards && data.rewards.length > 0) {
-                data.rewards.forEach((r: any, idx: number) => {
+                // Refresh Inventory
+                refreshInventory();
+
+                data.rewards.forEach((r: any) => {
                     n8nLogs.push({
                         nodeId: 'REWARD',
-                        nodeKind: 'variable', // use 'variable' color (orange)
-                        timestamp: Date.now() + 100 + idx,
+                        nodeKind: 'variable',
+                        timestamp: Date.now() + logOffset++,
                         gasUsed: 0,
                         error: `Acquired: ${r.itemType} x${r.qty}`
                     });
                 });
             }
 
-            // Direct Store Update (using internal setState would be better but we only have public API)
-            // We need to inject logs. 'executionLogs' is readonly in store interface? 
-            // set({ executionLogs }) is internal.
-            // Oh right, we can't set logs directly from here via `useFlowStore` returned object unless we expose a setter.
-            // `runGraph` sets logs. 
-            // We might need to extend the store.
-            // OR: Hack: Just use `useFlowStore.setState({ executionLogs: ... })` which is available on the store instance itself.
+            // Mission 11-F-2: Mission Status & Special Rewards
+            if (data.missions) {
+                setMissions(data.missions);
+                data.missions.forEach((m: any) => {
+                    if (m.justCompleted) {
+                        n8nLogs.push({
+                            nodeId: 'MISSION',
+                            nodeKind: 'trigger', // Highlight color?
+                            timestamp: Date.now() + logOffset++,
+                            gasUsed: 0,
+                            error: `COMPLETED: ${m.title}`
+                        });
+                    }
+                });
+            }
+            if (data.missionRewards) {
+                // Mission rewards are already combined in data.rewards in our API logic.
+                // So we don't need to iterate them again for logging if we logged data.rewards.
+                // data.missionRewards is mostly for specific UI handling if needed.
+            }
+
+            // Direct Store Update
             useFlowStore.setState({ executionLogs: n8nLogs });
 
         } catch (error: any) {
@@ -124,7 +145,7 @@ export function RunToolbar() {
                             }`}
                     >
                         <Play className={`h-4 w-4 ${isRunning ? 'animate-pulse' : 'fill-current'}`} />
-                        <span>{isRunning ? 'Run' : 'Run'}</span>
+                        <span>{isRunning ? 'Running...' : 'Run'}</span>
                     </button>
 
                     {/* Mission 11-C: Run via n8n */}
@@ -140,6 +161,35 @@ export function RunToolbar() {
                     >
                         <Zap className={`h-4 w-4 ${isN8NRunning ? 'animate-pulse' : 'fill-current'}`} />
                         <span>{isN8NRunning ? 'n8n...' : 'n8n'}</span>
+                    </button>
+
+                    <div className="h-6 w-px bg-white/10 mx-1" />
+
+                    {/* Mission 11-E: Inventory */}
+                    <button
+                        onClick={() => setInventoryOpen(true)}
+                        className="rounded p-2 text-purple-400 hover:bg-white/10 hover:text-white transition-colors"
+                        title="Inventory"
+                    >
+                        <Package className="h-4 w-4" />
+                    </button>
+
+                    {/* Mission 11-F: Missions */}
+                    <button
+                        onClick={() => setMissionOpen(true)}
+                        className="rounded p-2 text-yellow-500 hover:bg-white/10 hover:text-white transition-colors"
+                        title="Missions"
+                    >
+                        <Trophy className="h-4 w-4" />
+                    </button>
+
+                    {/* Mission 11-H: Help */}
+                    <button
+                        onClick={() => setHelpOpen(true)}
+                        className="rounded p-2 text-blue-400 hover:bg-white/10 hover:text-white transition-colors"
+                        title="Help"
+                    >
+                        <HelpCircle className="h-4 w-4" />
                     </button>
 
                     <button

@@ -8,6 +8,9 @@ import { RunToolbar } from '@/features/editor/RunToolbar';
 import { StorageControls } from '@/features/storage/StorageControls';
 import { Terminal } from '@/features/ui/Terminal';
 import { useFlowStore } from '@/store/flowStore';
+import { InventoryModal } from '@/features/inventory/InventoryModal';
+import { MissionPanel } from '@/features/missions/MissionPanel';
+import { HelpModal } from '@/features/help/HelpModal';
 
 const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
@@ -90,6 +93,9 @@ function Flow() {
                 <RunToolbar />
                 <StorageControls />
                 <Terminal />
+                <InventoryModal />
+                <MissionPanel />
+                <HelpModal />
             </ReactFlow>
         </div>
     );
