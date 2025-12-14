@@ -65,6 +65,12 @@ interface FlowState {
     // Help State (Mission 11-H)
     isHelpOpen: boolean;
     setHelpOpen: (isOpen: boolean) => void;
+
+    // Result State (Mission 12-A)
+    isResultOpen: boolean;
+    setResultOpen: (isOpen: boolean) => void;
+    lastExecutionResult: any; // Using any for MVP flexibility as per requirement
+    setLastExecutionResult: (result: any) => void;
 }
 
 export const useFlowStore = create<FlowState>((set, get) => ({
@@ -91,6 +97,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     // Help Defaults
     isHelpOpen: false,
     setHelpOpen: (isOpen) => set({ isHelpOpen: isOpen }),
+
+    // Result Card State (Mission 12-A)
+    isResultOpen: false,
+    setResultOpen: (isOpen) => set({ isResultOpen: isOpen }),
+    lastExecutionResult: null,
+    setLastExecutionResult: (result) => set({ lastExecutionResult: result }),
 
 
     onPaneClick: () => {

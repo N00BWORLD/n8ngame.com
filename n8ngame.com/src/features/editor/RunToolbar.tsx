@@ -6,7 +6,7 @@ import { SettingsModal } from '@/features/settings/SettingsModal';
 import { useUiStore } from '@/store/uiStore';
 
 export function RunToolbar() {
-    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen } = useFlowStore();
+    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen } = useFlowStore();
     const { t } = useUiStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isN8NRunning, setIsN8NRunning] = useState(false);
@@ -76,13 +76,30 @@ export function RunToolbar() {
                             nodeKind: 'trigger',
                             timestamp: Date.now() + logOffset++,
                             gasUsed: 0,
-                            error: `[${t('terminal.mission')}] ${m.title}`
+                            error: `[MISSION] Completed: ${m.title}`
                         });
                     }
                 });
             }
 
+            // Explicit Mission Rewards Logging
+            if (data.missionRewards && data.missionRewards.length > 0) {
+                data.missionRewards.forEach((r: any) => {
+                    n8nLogs.push({
+                        nodeId: 'REWARD',
+                        nodeKind: 'variable',
+                        timestamp: Date.now() + logOffset++,
+                        gasUsed: 0,
+                        error: `[REWARD] ${r.itemType} x${r.qty}`
+                    });
+                });
+            }
+
             useFlowStore.setState({ executionLogs: n8nLogs });
+
+            // Mission 12-A: Result Card
+            setLastExecutionResult(data);
+            setResultOpen(true);
 
         } catch (error: any) {
             useFlowStore.setState({
@@ -108,8 +125,8 @@ export function RunToolbar() {
                         <button
                             onClick={() => setExecutionMode('local')}
                             className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors ${executionMode === 'local'
-                                    ? 'bg-purple-600 text-white'
-                                    : 'text-gray-400 hover:text-white'
+                                ? 'bg-purple-600 text-white'
+                                : 'text-gray-400 hover:text-white'
                                 }`}
                         >
                             <Cpu className="h-3.5 w-3.5" />
@@ -118,8 +135,8 @@ export function RunToolbar() {
                         <button
                             onClick={() => setExecutionMode('remote')}
                             className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors ${executionMode === 'remote'
-                                    ? 'bg-cyan-600 text-white'
-                                    : 'text-gray-400 hover:text-white'
+                                ? 'bg-cyan-600 text-white'
+                                : 'text-gray-400 hover:text-white'
                                 }`}
                         >
                             <Globe className="h-3.5 w-3.5" />

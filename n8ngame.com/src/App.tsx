@@ -13,7 +13,9 @@ import { InventoryModal } from '@/features/inventory/InventoryModal';
 import { MissionPanel } from '@/features/missions/MissionPanel';
 import { HelpModal } from '@/features/help/HelpModal';
 import { initUiSettings } from '@/store/uiStore';
+import { InitUiSettings } from '@/store/uiStore';
 import { TopLeftControls } from '@/components/TopLeftControls';
+import { ResultCard } from '@/components/ResultCard';
 
 const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
@@ -82,6 +84,9 @@ function Flow() {
                 <Terminal />
                 <InventoryModal />
                 <MissionPanel />
+                <InventoryModal />
+                <MissionPanel />
+                <ResultCard />
                 <HelpModal />
             </ReactFlow>
         </div>

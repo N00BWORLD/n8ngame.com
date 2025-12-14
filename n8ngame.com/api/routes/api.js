@@ -5,10 +5,18 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { computeRewards, grantRewards } from '../services/rewards.js';
 import { evaluateMissions } from '../services/missions.js';
+import { calculateScore } from '../services/scoring.js';
 
 // Supabase Admin Client (Service Role)
 const supabaseUrl = process.env.SUPABASE_URL || 'http://supabase-kong:8000';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
+
+// Schema for Validation
+const BlueprintSchema = z.object({
+    nodes: z.array(z.any()),
+    edges: z.array(z.any()).optional(),
+    connections: z.array(z.any()).optional()
+});
 
 // Auth Middleware: Verify JWT and inject user
 async function authenticate(request, reply) {
@@ -78,19 +86,40 @@ export async function apiRoutes(fastify, options) {
             const sb = createClient(supabaseUrl, serviceRoleKey);
 
             // Fetch User Inventory
-            const { data: items, error } = await sb
-                .from('inventory')
-                .select('*')
-                .eq('user_id', request.user.id)
-                .order('item_type', { ascending: true })
-                .order('level', { ascending: true });
+            let items = [];
+            let error = null;
+
+            if (process.env.MOCK_DB === 'true') {
+                items = [
+                    { item_type: 'node_fragment', quantity: 5, level: 1, metadata: {}, updated_at: new Date().toISOString() },
+                    { item_type: 'logic_circuit', quantity: 2, level: 1, metadata: {}, created_at: new Date().toISOString() }
+                ];
+            } else {
+                const { data, error: dbErr } = await sb
+                    .from('inventory')
+                    .select('*')
+                    .eq('user_id', request.user.id)
+                    .order('item_type', { ascending: true })
+                    .order('level', { ascending: true });
+                items = data;
+                error = dbErr;
+            }
 
             if (error) {
                 request.log.error(error);
                 return reply.code(500).send({ error: 'db_error', message: error.message });
             }
 
-            return { ok: true, items };
+            // Map to CamelCase strictly per requirements
+            const mappedItems = (items || []).map(i => ({
+                itemType: i.item_type,
+                qty: i.quantity ?? (i.metadata?.stack || 1), // Fallback to meta.stack
+                level: i.level,
+                meta: i.metadata,
+                updatedAt: i.updated_at || i.created_at
+            }));
+
+            return { ok: true, items: mappedItems };
         });
 
         // POST /api/execute-blueprint (Mission 11-B + 11-D-2)
@@ -141,57 +170,65 @@ export async function apiRoutes(fastify, options) {
                 let missionRewards = [];
 
                 try {
-                    // Fetch Inventory for Missions (Badges)
-                    const { data: inventory } = await (() => {
-                        // Reuse code or context? We just need to fetch here.
-                        // Can create client:
+                    // Fetch Inventory (Safe fail)
+                    let inventory = [];
+                    try {
                         const sb = createClient(supabaseUrl, serviceRoleKey);
-                        return sb.from('inventory').select('*').eq('user_id', request.user.id);
-                    })();
+                        const { data } = await sb.from('inventory').select('*').eq('user_id', request.user.id);
+                        if (data) inventory = data;
+                    } catch (dbErr) {
+                        request.log.error(dbErr, 'Inventory Fetch Failed');
+                    }
 
                     // 1. Calculate Execution Rewards
                     const execRewards = computeRewards(blueprint, json);
+                    combinedRewards = [...execRewards];
 
-                    // 2. Evaluate Missions (11-F-2)
-                    const { missions, newRewards } = await evaluateMissions({
-                        userId: request.user.id,
-                        blueprint: blueprint, // Has { nodes, edges } (or connections if mapped)
-                        // Note: toBlueprint sends 'edges', but Zod schema might fail if it demands 'connections'
-                        // Assuming checks pass or we map edges to connections if needed.
-                        // Actually evaluateMissions expects ReactFlow structure (edges).
-                        // If 11-B schema enforcement is strict, we should have fixed it before.
-                        // If blueprint has edges, pass it.
-                        n8nResponse: json,
-                        inventoryBadges: inventory || []
-                    });
-
-                    finalMissions = missions;
-                    missionRewards = newRewards; // Badges + items from missions
-
-                    // Combine All Rewards
-                    combinedRewards = [...execRewards, ...missionRewards];
-
-                    if (combinedRewards.length > 0) {
-                        // Grant to DB (Idempotency inside grantRewards mostly handles quantity, 
-                        // but badges are unique item types so upsert handles them fine)
-                        await grantRewards(request.user.id, combinedRewards);
-                        grantedAt = new Date().toISOString();
+                    // 2. Evaluate Missions (Safe fail)
+                    try {
+                        const { missions, newRewards } = await evaluateMissions({
+                            userId: request.user.id,
+                            blueprint: blueprint,
+                            n8nResponse: json,
+                            inventoryBadges: inventory
+                        });
+                        finalMissions = missions;
+                        missionRewards = newRewards;
+                        combinedRewards = [...combinedRewards, ...missionRewards];
+                    } catch (missionErr) {
+                        request.log.error(missionErr, 'Mission Eval Failed');
+                        // On error, return current missions state if possible, or empty?
+                        // Ideally we should re-calculate state without "justCompleted" if it failed,
+                        // but here we just leave it empty or failed.
                     }
-                } catch (rewardErr) {
-                    request.log.error(rewardErr, 'Reward Grant Failed');
-                    json.rewardError = 'Failed to grant rewards';
+
+                    // 3. Grant (Safe fail)
+                    if (combinedRewards.length > 0) {
+                        try {
+                            await grantRewards(request.user.id, combinedRewards);
+                            grantedAt = new Date().toISOString();
+                        } catch (grantErr) {
+                            request.log.error(grantErr, 'Grant Write Failed');
+                            json.rewardError = 'DB Write Failed';
+                        }
+                    }
+                } catch (unexpectedErr) {
+                    request.log.error(unexpectedErr, 'Refactored Reward Logic Error');
                 }
+
+                // Mission 12-A: Calculate Score
+                const justCompletedCount = (finalMissions || []).filter(m => m.justCompleted).length;
+                const scoreResult = calculateScore(blueprint, json, justCompletedCount);
+
 
                 return {
                     ...json,
-                    rewards: combinedRewards, // For now return all? Or keeping 11-D spec "rewards".
-                    // User Request: "missionRewards" in response. 
-                    // Let's filter "justCompleted" ones for "missionRewards" specifically?
-                    // Prompt: "missionRewards는 inventory_items에 실제로 지급되어야 한다(서버 권위)"
-                    // "justCompleted가 있는 미션만 missionRewards에 포함" -> Done by evaluateMissions returning newRewards
-                    missionRewards: missionRewards,
+                    rewards: combinedRewards,
+                    missionRewards: missionRewards, // Explicitly separation for UI
                     missions: finalMissions,
-                    grantedAt
+                    grantedAt,
+                    // Mission 12-A: Scoring
+                    ...scoreResult
                 };
 
             } catch (err) {
