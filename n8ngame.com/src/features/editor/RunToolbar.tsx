@@ -13,8 +13,8 @@ export function RunToolbar() {
 
     // Status text
     const statusText = (isRunning || isN8NRunning)
-        ? t('status_running')
-        : (executionLogs.length > 0 ? t('status_completed') : t('status_ready'));
+        ? t('ui.status.running')
+        : (executionLogs.length > 0 ? t('ui.status.completed') : t('ui.status.ready'));
 
     const handleRunN8N = async () => {
         if (isN8NRunning) return;
@@ -61,7 +61,7 @@ export function RunToolbar() {
                         nodeKind: 'variable',
                         timestamp: Date.now() + logOffset++,
                         gasUsed: 0,
-                        error: `[${t('log_reward')}] ${t('log_acquired')}: ${r.itemType} x${r.qty}`
+                        error: `[${t('terminal.reward')}] ${r.itemType} x${r.qty}`
                     });
                 });
             }
@@ -76,7 +76,7 @@ export function RunToolbar() {
                             nodeKind: 'trigger',
                             timestamp: Date.now() + logOffset++,
                             gasUsed: 0,
-                            error: `[${t('log_mission_completed')}] ${m.title}`
+                            error: `[${t('terminal.mission')}] ${m.title}`
                         });
                     }
                 });
@@ -91,7 +91,7 @@ export function RunToolbar() {
                     nodeKind: 'system',
                     timestamp: Date.now(),
                     gasUsed: 0,
-                    error: `[${t('log_error')}] ${error.message}`
+                    error: `[${t('terminal.error')}] ${error.message}`
                 }]
             });
         } finally {
@@ -139,7 +139,7 @@ export function RunToolbar() {
                             }`}
                     >
                         <Play className={`h-4 w-4 ${isRunning ? 'animate-pulse' : 'fill-current'}`} />
-                        <span>{isRunning ? t('status_running') : t('btn_run')}</span>
+                        <span>{isRunning ? t('ui.status.running') : t('btn.run')}</span>
                     </button>
 
                     {/* Mission 11-C: Run via n8n */}
@@ -151,7 +151,7 @@ export function RunToolbar() {
                                 ? 'bg-orange-800 cursor-not-allowed'
                                 : 'bg-gradient-to-r from-orange-600 to-red-500 hover:scale-105 active:scale-95 shadow-lg shadow-orange-900/20'
                             }`}
-                        title={t('btn_run_n8n')}
+                        title={t('btn.runViaN8n')}
                     >
                         <Zap className={`h-4 w-4 ${isN8NRunning ? 'animate-pulse' : 'fill-current'}`} />
                         <span>{isN8NRunning ? 'n8n...' : 'n8n'}</span>
@@ -163,7 +163,7 @@ export function RunToolbar() {
                     <button
                         onClick={() => setInventoryOpen(true)}
                         className="rounded p-2 text-purple-400 hover:bg-white/10 hover:text-white transition-colors"
-                        title={t('btn_inventory')}
+                        title={t('btn.inventory')}
                     >
                         <Package className="h-4 w-4" />
                     </button>
@@ -172,7 +172,7 @@ export function RunToolbar() {
                     <button
                         onClick={() => setMissionOpen(true)}
                         className="rounded p-2 text-yellow-500 hover:bg-white/10 hover:text-white transition-colors"
-                        title={t('btn_missions')}
+                        title={t('btn.missions')}
                     >
                         <Trophy className="h-4 w-4" />
                     </button>
@@ -181,7 +181,7 @@ export function RunToolbar() {
                     <button
                         onClick={() => setHelpOpen(true)}
                         className="rounded p-2 text-blue-400 hover:bg-white/10 hover:text-white transition-colors"
-                        title={t('btn_help')}
+                        title={t('btn.help')}
                     >
                         <HelpCircle className="h-4 w-4" />
                     </button>
@@ -189,7 +189,7 @@ export function RunToolbar() {
                     <button
                         onClick={() => setIsSettingsOpen(true)}
                         className="rounded p-2 text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
-                        title={t('btn_settings')}
+                        title={t('btn.settings')}
                     >
                         <Settings className="h-4 w-4" />
                     </button>
@@ -207,7 +207,7 @@ export function RunToolbar() {
                             className="text-xs text-gray-500 hover:text-white flex items-center gap-1"
                         >
                             <RotateCcw className="h-3 w-3" />
-                            {t('btn_reset')}
+                            {t('btn.reset')}
                         </button>
                     )}
                 </div>

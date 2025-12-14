@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useFlowStore } from '@/store/flowStore';
 import { X, Box, Package } from 'lucide-react';
@@ -64,13 +65,13 @@ export function InventoryModal() {
 
                 <div className="mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
                     <Package className="h-6 w-6 text-purple-400" />
-                    <h2 className="text-xl font-bold text-white">{t('inventory_title')}</h2>
+                    <h2 className="text-xl font-bold text-white">{t('title.inventory')}</h2>
                 </div>
 
                 <div className="min-h-[300px]">
                     {loading && (
                         <div className="flex h-[200px] items-center justify-center text-gray-400 animate-pulse">
-                            {t('inventory_loading')}
+                            {t('ui.status.loading')}
                         </div>
                     )}
 
@@ -83,7 +84,7 @@ export function InventoryModal() {
                     {!loading && !error && items.length === 0 && (
                         <div className="flex h-[200px] flex-col items-center justify-center gap-2 text-gray-500">
                             <Box className="h-10 w-10 opacity-20" />
-                            <p>{t('inventory_empty_state')}</p>
+                            <p>{t('ui.status.empty')}</p>
                         </div>
                     )}
 

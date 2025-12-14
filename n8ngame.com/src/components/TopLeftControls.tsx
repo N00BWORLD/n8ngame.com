@@ -3,7 +3,7 @@ import { useUiStore } from '@/store/uiStore';
 import { Moon, Sun, Languages } from 'lucide-react';
 
 export function TopLeftControls() {
-    const { lang, setLang, theme, toggleTheme } = useUiStore();
+    const { lang, setLang, theme, toggleTheme, t } = useUiStore();
 
     return (
         <div className="absolute top-4 left-4 z-50 flex items-center gap-2 rounded-lg glass-panel p-2">
@@ -11,8 +11,8 @@ export function TopLeftControls() {
             <button
                 onClick={toggleTheme}
                 className="flex items-center justify-center p-2 rounded hover:bg-white/10 text-gray-400 hover:text-yellow-400 transition-colors"
-                title="Toggle Theme"
-                aria-label="Toggle Theme"
+                title={t('ui.controls.aria.theme')}
+                aria-label={t('ui.controls.aria.theme')}
             >
                 {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
             </button>
@@ -26,15 +26,17 @@ export function TopLeftControls() {
                     onClick={() => setLang('en')}
                     className={`px-2 py-1 text-xs font-bold rounded transition-colors ${lang === 'en' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
                         }`}
+                    aria-label="Select English"
                 >
-                    EN
+                    {t('ui.lang.en')}
                 </button>
                 <button
                     onClick={() => setLang('ko')}
                     className={`px-2 py-1 text-xs font-bold rounded transition-colors ${lang === 'ko' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
                         }`}
+                    aria-label="Select Korean"
                 >
-                    KO
+                    {t('ui.lang.ko')}
                 </button>
             </div>
         </div>

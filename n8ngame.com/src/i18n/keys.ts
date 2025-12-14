@@ -1,44 +1,72 @@
 
-export const I18N_KEYS = [
-    // Common Buttons
-    'btn_close',
-    'btn_confirm',
-    'btn_reset',
-    'btn_run',
-    'btn_run_n8n',
-    'btn_save',
-    'btn_load',
-    'btn_inventory',
-    'btn_missions',
-    'btn_help',
-    'btn_settings',
+export type I18nKey =
+    // Top-left controls
+    | "ui.theme.dark"
+    | "ui.theme.light"
+    | "ui.lang.en"
+    | "ui.lang.ko"
+    | "ui.controls.aria.theme"
+    | "ui.controls.aria.language"
 
-    // Status
-    'status_running',
-    'status_completed',
-    'status_ready',
+    // Common buttons
+    | "btn.run"
+    | "btn.runViaN8n"
+    | "btn.save"
+    | "btn.load"
+    | "btn.inventory"
+    | "btn.missions"
+    | "btn.help"
+    | "btn.close"
+    | "btn.reset"     // Added
+    | "btn.settings"  // Added
 
-    // Mission Panel
-    'mission_title',
-    'mission_status_locked',
-    'mission_status_active',
-    'mission_status_completed',
-    'mission_empty_state',
+    // Panels / titles
+    | "title.inventory"
+    | "title.missions"
+    | "title.terminal"
+    | "title.help"
 
-    // Inventory Panel
-    'inventory_title',
-    'inventory_empty_state',
-    'inventory_loading',
+    // Mission status
+    | "mission.status.locked"
+    | "mission.status.active"
+    | "mission.status.completed"
 
-    // Help Modal
-    'help_title',
-    'help_subtitle',
+    // Terminal prefixes
+    | "terminal.reward"
+    | "terminal.mission"
+    | "terminal.error"
+    | "terminal.info"
 
-    // Terminal Log Prefixes
-    'log_reward',
-    'log_mission_completed',
-    'log_error',
-    'log_acquired'
-] as const;
+    // Help content (MVP)
+    | "help.heading.what"
+    | "help.body.what"
+    | "help.heading.quickstart"
+    | "help.qs.1"
+    | "help.qs.2"
+    | "help.qs.3"
+    | "help.qs.4"
+    | "help.heading.buttons"
+    | "help.buttons.run"
+    | "help.buttons.runViaN8n"
+    | "help.buttons.saveLoad"
+    | "help.buttons.inventory"
+    | "help.buttons.missions"
+    | "help.heading.rewards"
+    | "help.body.rewards"
+    | "help.heading.troubleshooting"
+    | "help.trouble.1"
+    | "help.trouble.2"
+    | "help.trouble.3"
+    | "help.heading.glossary"
+    | "help.glossary.blueprint"
+    | "help.glossary.node"
+    | "help.glossary.edge"
+    | "help.glossary.webhook"
+    | "help.glossary.gasToken"
 
-export type I18nKey = typeof I18N_KEYS[number];
+    // Status (Added to prevent UI breakage)
+    | "ui.status.ready"
+    | "ui.status.running"
+    | "ui.status.completed"
+    | "ui.status.empty"
+    | "ui.status.loading";
