@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
 
 export function RunToolbar() {
-    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setNodes } = useFlowStore();
+    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint } = useFlowStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isN8NRunning, setIsN8NRunning] = useState(false);
 
