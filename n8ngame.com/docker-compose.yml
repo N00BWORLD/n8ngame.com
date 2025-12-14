@@ -1,0 +1,46 @@
+version: '3'
+
+services:
+  app:
+    build: .
+    container_name: n8ngame-app
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:alpine
+    container_name: n8ngame-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - app
+
+  certbot:
+    image: certbot/certbot
+    container_name: n8ngame-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done;'"
+
+  # --- Future Backend / Supabase (Placeholder) ---
+  # backend:
+  #   image: my-backend-image
+  #   environment:
+  #     - DATABASE_URL=postgres://user:pass@supabase:5432/db
+  #   expose:
+  #     - "3000"
+  
+  # supabase:
+  #   image: supabase/postgres
+  #   environment:
+  #     - POSTGRES_PASSWORD=securepassword
+  #   ports:
+  #     - "5432:5432"

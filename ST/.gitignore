@@ -1,0 +1,31 @@
+# 설정 파일 (계좌 정보 포함)
+# config.py  # 기본 설정은 포함
+.env
+
+# 로그 폴더
+logs/
+
+# 로그 파일
+*.log
+trading.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
