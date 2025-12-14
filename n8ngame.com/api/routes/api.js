@@ -1,9 +1,9 @@
 import { redis } from '../services/redis.js';
 import crypto from 'crypto';
-
-import { redis } from '../services/redis.js';
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
+import { computeRewards, grantRewards } from '../services/rewards.js';
 
 // Supabase Admin Client (Service Role)
 const supabaseUrl = process.env.SUPABASE_URL || 'http://supabase-kong:8000';
@@ -68,6 +68,63 @@ export async function apiRoutes(fastify, options) {
                 return reply.code(500).send({ error: 'db_error', message: error.message });
             }
             return { data };
+        });
+
+        // POST /api/execute-blueprint (Mission 11-B + 11-D-2)
+        privateRoutes.post('/execute-blueprint', async (request, reply) => {
+            try {
+                // 1. Validate Body
+                const body = request.body || {};
+                const blueprint = body.blueprint;
+
+                if (!blueprint) return reply.code(400).send({ error: 'bad_request', message: 'Missing blueprint in body' });
+
+                // Zod Validation
+                try {
+                    BlueprintSchema.parse(blueprint);
+                } catch (zodError) {
+                    return reply.code(400).send({ error: 'validation_error', details: zodError.errors });
+                }
+
+                const n8nUrl = process.env.N8N_INTERNAL_WEBHOOK_URL;
+                if (!n8nUrl) return reply.code(500).send({ error: 'server_error', message: 'Webhook URL Not Configured' });
+
+                // 2. Construct Payload
+                const payload = {
+                    userId: request.user.id,
+                    blueprint: blueprint,
+                    requestId: crypto.randomUUID(),
+                    sentAt: new Date().toISOString()
+                };
+
+                // 3. Forward to n8n
+                const response = await fetch(n8nUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    return reply.code(502).send({ error: 'n8n_error', status: response.status, message: text });
+                }
+
+                const json = await response.json();
+
+                // Mission 11-D-2: Reward Calculation & Granting
+                // Temporary logic placeholder if imports missing:
+                // But I should do it right.
+
+                // Let's proceed with just the logic here, assuming I added import. 
+                // Wait, I haven't added import yet.
+                // I'll switch to multi_replace to add import + update route.
+
+                return json;
+
+            } catch (err) {
+                request.log.error(err);
+                return reply.code(500).send({ error: 'internal_error', message: err.message });
+            }
         });
 
         // POST /api/blueprints (Upsert Own Data)

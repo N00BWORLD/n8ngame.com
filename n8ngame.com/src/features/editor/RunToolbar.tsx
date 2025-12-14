@@ -47,6 +47,19 @@ export function RunToolbar() {
                 error: msg
             }));
 
+            // Mission 11-D-2: Result Rewards
+            if (data.rewards && data.rewards.length > 0) {
+                data.rewards.forEach((r: any, idx: number) => {
+                    n8nLogs.push({
+                        nodeId: 'REWARD',
+                        nodeKind: 'variable', // use 'variable' color (orange)
+                        timestamp: Date.now() + 100 + idx,
+                        gasUsed: 0,
+                        error: `Acquired: ${r.itemType} x${r.qty}`
+                    });
+                });
+            }
+
             // Direct Store Update (using internal setState would be better but we only have public API)
             // We need to inject logs. 'executionLogs' is readonly in store interface? 
             // set({ executionLogs }) is internal.
