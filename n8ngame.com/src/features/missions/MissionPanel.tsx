@@ -1,9 +1,10 @@
-
 import { useFlowStore } from '@/store/flowStore';
 import { X, Trophy, Lock, CheckCircle, Target } from 'lucide-react';
+import { useUiStore } from '@/store/uiStore';
 
 export function MissionPanel() {
     const { missions, isMissionOpen, setMissionOpen } = useFlowStore();
+    const { t } = useUiStore();
 
     if (!isMissionOpen) return null;
 
@@ -19,13 +20,13 @@ export function MissionPanel() {
 
                 <div className="mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
                     <Trophy className="h-6 w-6 text-yellow-400" />
-                    <h2 className="text-xl font-bold text-white">Missions</h2>
+                    <h2 className="text-xl font-bold text-white">{t('mission_title')}</h2>
                 </div>
 
                 <div className="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-2">
                     {missions.length === 0 && (
                         <div className="text-center text-gray-500 py-10">
-                            Execute a blueprint to load missions.
+                            {t('mission_empty_state')}
                         </div>
                     )}
 

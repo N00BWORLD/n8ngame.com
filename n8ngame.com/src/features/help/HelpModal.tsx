@@ -1,10 +1,12 @@
-
 import { useFlowStore } from '@/store/flowStore';
-import { GUIDE_DATA } from '@/content/guideData';
+import { getGuideData } from '@/content/guideData';
+import { useUiStore } from '@/store/uiStore';
 import { X, BookOpen } from 'lucide-react';
 
 export function HelpModal() {
     const { isHelpOpen, setHelpOpen } = useFlowStore();
+    const { t, lang } = useUiStore();
+    const guideData = getGuideData(lang);
 
     if (!isHelpOpen) return null;
 
@@ -19,8 +21,8 @@ export function HelpModal() {
                             <BookOpen className="h-6 w-6" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-white">가이드 (Guide)</h2>
-                            <p className="text-sm text-gray-400">게임 시작을 위한 필수 매뉴얼</p>
+                            <h2 className="text-xl font-bold text-white">{t('help_title')}</h2>
+                            <p className="text-sm text-gray-400">{t('help_subtitle')}</p>
                         </div>
                     </div>
                     <button
@@ -34,7 +36,7 @@ export function HelpModal() {
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                     <div className="space-y-8">
-                        {GUIDE_DATA.map((section, idx) => (
+                        {guideData.map((section, idx) => (
                             <div key={idx} className="space-y-3">
                                 <h3 className="text-lg font-bold text-blue-300 flex items-center gap-2">
                                     <span className="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
@@ -58,7 +60,7 @@ export function HelpModal() {
                         onClick={() => setHelpOpen(false)}
                         className="rounded-full bg-blue-600 px-8 py-2 font-medium text-white hover:bg-blue-500 transition-colors"
                     >
-                        알겠습니다!
+                        {t('btn_confirm')}
                     </button>
                 </div>
             </div>

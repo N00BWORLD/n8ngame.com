@@ -3,14 +3,18 @@ import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle
 import { useFlowStore } from '@/store/flowStore';
 import { useState } from 'react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
+import { useUiStore } from '@/store/uiStore';
 
 export function RunToolbar() {
     const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen } = useFlowStore();
+    const { t } = useUiStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isN8NRunning, setIsN8NRunning] = useState(false);
 
     // Status text
-    const statusText = (isRunning || isN8NRunning) ? 'Running...' : (executionLogs.length > 0 ? 'Completed' : 'Ready');
+    const statusText = (isRunning || isN8NRunning)
+        ? t('status_running')
+        : (executionLogs.length > 0 ? t('status_completed') : t('status_ready'));
 
     const handleRunN8N = async () => {
         if (isN8NRunning) return;
@@ -19,8 +23,6 @@ export function RunToolbar() {
 
         try {
             const blueprint = toBlueprint();
-
-            // Temporary Token Handling (Mission 11-C)
             const token = localStorage.getItem('sb-access-token') || 'mock-token-if-dev';
 
             const response = await fetch('/api/execute-blueprint', {
@@ -39,7 +41,6 @@ export function RunToolbar() {
 
             const data = await response.json();
 
-            // Map string logs to ExecutionLog format
             const n8nLogs = (data.logs || []).map((msg: string, i: number) => ({
                 nodeId: 'n8n',
                 nodeKind: 'system',
@@ -52,7 +53,6 @@ export function RunToolbar() {
 
             // Mission 11-D-2: Execution Rewards
             if (data.rewards && data.rewards.length > 0) {
-                // Refresh Inventory
                 refreshInventory();
 
                 data.rewards.forEach((r: any) => {
@@ -61,7 +61,7 @@ export function RunToolbar() {
                         nodeKind: 'variable',
                         timestamp: Date.now() + logOffset++,
                         gasUsed: 0,
-                        error: `Acquired: ${r.itemType} x${r.qty}`
+                        error: `[${t('log_reward')}] ${t('log_acquired')}: ${r.itemType} x${r.qty}`
                     });
                 });
             }
@@ -73,21 +73,15 @@ export function RunToolbar() {
                     if (m.justCompleted) {
                         n8nLogs.push({
                             nodeId: 'MISSION',
-                            nodeKind: 'trigger', // Highlight color?
+                            nodeKind: 'trigger',
                             timestamp: Date.now() + logOffset++,
                             gasUsed: 0,
-                            error: `COMPLETED: ${m.title}`
+                            error: `[${t('log_mission_completed')}] ${m.title}`
                         });
                     }
                 });
             }
-            if (data.missionRewards) {
-                // Mission rewards are already combined in data.rewards in our API logic.
-                // So we don't need to iterate them again for logging if we logged data.rewards.
-                // data.missionRewards is mostly for specific UI handling if needed.
-            }
 
-            // Direct Store Update
             useFlowStore.setState({ executionLogs: n8nLogs });
 
         } catch (error: any) {
@@ -97,7 +91,7 @@ export function RunToolbar() {
                     nodeKind: 'system',
                     timestamp: Date.now(),
                     gasUsed: 0,
-                    error: `Failed: ${error.message}`
+                    error: `[${t('log_error')}] ${error.message}`
                 }]
             });
         } finally {
@@ -114,8 +108,8 @@ export function RunToolbar() {
                         <button
                             onClick={() => setExecutionMode('local')}
                             className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors ${executionMode === 'local'
-                                ? 'bg-purple-600 text-white'
-                                : 'text-gray-400 hover:text-white'
+                                    ? 'bg-purple-600 text-white'
+                                    : 'text-gray-400 hover:text-white'
                                 }`}
                         >
                             <Cpu className="h-3.5 w-3.5" />
@@ -124,8 +118,8 @@ export function RunToolbar() {
                         <button
                             onClick={() => setExecutionMode('remote')}
                             className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors ${executionMode === 'remote'
-                                ? 'bg-cyan-600 text-white'
-                                : 'text-gray-400 hover:text-white'
+                                    ? 'bg-cyan-600 text-white'
+                                    : 'text-gray-400 hover:text-white'
                                 }`}
                         >
                             <Globe className="h-3.5 w-3.5" />
@@ -145,7 +139,7 @@ export function RunToolbar() {
                             }`}
                     >
                         <Play className={`h-4 w-4 ${isRunning ? 'animate-pulse' : 'fill-current'}`} />
-                        <span>{isRunning ? 'Running...' : 'Run'}</span>
+                        <span>{isRunning ? t('status_running') : t('btn_run')}</span>
                     </button>
 
                     {/* Mission 11-C: Run via n8n */}
@@ -157,7 +151,7 @@ export function RunToolbar() {
                                 ? 'bg-orange-800 cursor-not-allowed'
                                 : 'bg-gradient-to-r from-orange-600 to-red-500 hover:scale-105 active:scale-95 shadow-lg shadow-orange-900/20'
                             }`}
-                        title="Execute via n8n Webhook"
+                        title={t('btn_run_n8n')}
                     >
                         <Zap className={`h-4 w-4 ${isN8NRunning ? 'animate-pulse' : 'fill-current'}`} />
                         <span>{isN8NRunning ? 'n8n...' : 'n8n'}</span>
@@ -169,7 +163,7 @@ export function RunToolbar() {
                     <button
                         onClick={() => setInventoryOpen(true)}
                         className="rounded p-2 text-purple-400 hover:bg-white/10 hover:text-white transition-colors"
-                        title="Inventory"
+                        title={t('btn_inventory')}
                     >
                         <Package className="h-4 w-4" />
                     </button>
@@ -178,7 +172,7 @@ export function RunToolbar() {
                     <button
                         onClick={() => setMissionOpen(true)}
                         className="rounded p-2 text-yellow-500 hover:bg-white/10 hover:text-white transition-colors"
-                        title="Missions"
+                        title={t('btn_missions')}
                     >
                         <Trophy className="h-4 w-4" />
                     </button>
@@ -187,7 +181,7 @@ export function RunToolbar() {
                     <button
                         onClick={() => setHelpOpen(true)}
                         className="rounded p-2 text-blue-400 hover:bg-white/10 hover:text-white transition-colors"
-                        title="Help"
+                        title={t('btn_help')}
                     >
                         <HelpCircle className="h-4 w-4" />
                     </button>
@@ -195,7 +189,7 @@ export function RunToolbar() {
                     <button
                         onClick={() => setIsSettingsOpen(true)}
                         className="rounded p-2 text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
-                        title="Configuration"
+                        title={t('btn_settings')}
                     >
                         <Settings className="h-4 w-4" />
                     </button>
@@ -213,7 +207,7 @@ export function RunToolbar() {
                             className="text-xs text-gray-500 hover:text-white flex items-center gap-1"
                         >
                             <RotateCcw className="h-3 w-3" />
-                            Reset
+                            {t('btn_reset')}
                         </button>
                     )}
                 </div>

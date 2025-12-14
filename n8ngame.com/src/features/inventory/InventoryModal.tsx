@@ -1,8 +1,9 @@
-
 import { useEffect, useState } from 'react';
 import { useFlowStore } from '@/store/flowStore';
 import { X, Box, Package } from 'lucide-react';
+import { useUiStore } from '@/store/uiStore';
 
+// ... (interface kept same or imported)
 interface InventoryItem {
     id: string;
     item_type: string;
@@ -13,6 +14,7 @@ interface InventoryItem {
 
 export function InventoryModal() {
     const { isInventoryOpen, setInventoryOpen, inventoryTrigger } = useFlowStore();
+    const { t } = useUiStore();
     const [items, setItems] = useState<InventoryItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -62,13 +64,13 @@ export function InventoryModal() {
 
                 <div className="mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
                     <Package className="h-6 w-6 text-purple-400" />
-                    <h2 className="text-xl font-bold text-white">Inventory</h2>
+                    <h2 className="text-xl font-bold text-white">{t('inventory_title')}</h2>
                 </div>
 
                 <div className="min-h-[300px]">
                     {loading && (
                         <div className="flex h-[200px] items-center justify-center text-gray-400 animate-pulse">
-                            Loading data...
+                            {t('inventory_loading')}
                         </div>
                     )}
 
@@ -81,7 +83,7 @@ export function InventoryModal() {
                     {!loading && !error && items.length === 0 && (
                         <div className="flex h-[200px] flex-col items-center justify-center gap-2 text-gray-500">
                             <Box className="h-10 w-10 opacity-20" />
-                            <p>No items found.</p>
+                            <p>{t('inventory_empty_state')}</p>
                         </div>
                     )}
 

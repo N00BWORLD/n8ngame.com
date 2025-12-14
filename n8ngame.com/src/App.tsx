@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { ReactFlow, Background, Controls, NodeTypes, ReactFlowProvider, useReactFlow } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import { TriggerNode } from '@/features/editor/nodes/TriggerNode';
 import { ActionNode } from '@/features/editor/nodes/ActionNode';
 import { VariableNode } from '@/features/editor/nodes/VariableNode';
@@ -11,6 +12,8 @@ import { useFlowStore } from '@/store/flowStore';
 import { InventoryModal } from '@/features/inventory/InventoryModal';
 import { MissionPanel } from '@/features/missions/MissionPanel';
 import { HelpModal } from '@/features/help/HelpModal';
+import { initUiSettings } from '@/store/uiStore';
+import { TopLeftControls } from '@/components/TopLeftControls';
 
 const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
@@ -18,19 +21,14 @@ const nodeTypes: NodeTypes = {
     variable: VariableNode,
 };
 
-const initialNodes = [
-    { id: '1', type: 'trigger', position: { x: 100, y: 100 }, data: { label: 'Start' } },
-    { id: '2', type: 'action', position: { x: 100, y: 300 }, data: { label: 'Process' } },
-    { id: '3', type: 'variable', position: { x: 400, y: 200 }, data: { label: 'Data' } },
-];
-
 function Flow() {
-    const { nodes, edges, onNodesChange, onEdgesChange, onConnect, onPaneClick, setNodes } = useFlowStore();
+    const { nodes, edges, onNodesChange, onEdgesChange, onConnect, onPaneClick, addNode } = useFlowStore();
+    const { screenToFlowPosition } = useReactFlow();
 
     useEffect(() => {
-        // Initialize nodes
-        setNodes(initialNodes as any);
-    }, [setNodes]);
+        // Initialize Theme and Language on Mount
+        initUiSettings();
+    }, []);
 
     const onDragOver = (event: React.DragEvent) => {
         event.preventDefault();
@@ -43,8 +41,6 @@ function Flow() {
         const type = event.dataTransfer.getData('application/reactflow');
         if (!type) return;
 
-        // Correctly project screen coordinates to flow coordinates
-        // useReactFlow must be used inside ReactFlowProvider, which Flow is.
         const position = screenToFlowPosition({
             x: event.clientX,
             y: event.clientY,
@@ -59,36 +55,27 @@ function Flow() {
             selected: true,
         };
 
-        const { addNode, nodes, setNodes } = useFlowStore.getState();
-
-        // Deselect others
-        const updatedNodes = nodes.map((n) => ({ ...n, selected: false }));
-        setNodes(updatedNodes as any);
-
         addNode(newNode as any);
     };
 
-    // Need screenToFlowPosition from useReactFlow
-    const { screenToFlowPosition } = useReactFlow();
-
     return (
-        <div
-            style={{ height: '100vh', width: '100vw', backgroundColor: '#050510' }}
-            onDragOver={onDragOver}
-            onDrop={onDrop}
-        >
+        <div style={{ width: '100vw', height: '100vh', background: '#000' }} onDragOver={onDragOver} onDrop={onDrop}>
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
-                onPaneClick={onPaneClick}
                 nodeTypes={nodeTypes}
+                onPaneClick={onPaneClick}
+                proOptions={{ hideAttribution: true }}
+                colorMode="dark"
                 fitView
             >
-                <Background color="#ccc" gap={20} />
+                <Background color="#222" gap={20} />
                 <Controls />
+                <TopLeftControls />
+
                 <NodePalette />
                 <RunToolbar />
                 <StorageControls />
