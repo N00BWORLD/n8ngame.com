@@ -1,4 +1,0 @@
-PyQt5
-pywin32
-pandas==1.5.3
-schedule
