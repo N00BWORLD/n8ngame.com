@@ -48,7 +48,7 @@ export function RockPanel() {
                 animation: float-up 0.8s ease-out forwards;
             }
         `}</style>
-            <div className="absolute top-24 left-1/2 -translate-x-1/2 w-full max-w-sm px-4 z-40 pointer-events-none">
+            <div className="w-full max-w-sm px-4 z-40 pointer-events-none select-none mx-auto">
                 {/* Stage Info */}
                 <div className="flex flex-col items-center gap-1 mb-2 drop-shadow-md">
                     <div className="flex items-center gap-2">

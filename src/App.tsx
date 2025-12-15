@@ -22,6 +22,7 @@ import { MineLogsPanel } from '@/features/mining/MineLogsPanel';
 import { ShopPanel } from '@/features/shop/ShopPanel';
 import { SlotMode } from '@/features/slots/SlotMode';
 import { RockPanel } from '@/features/mining/RockPanel'; // Mission 25-E
+import { AdPlaceholder } from '@/features/ads/AdPlaceholder';
 import { LayoutGrid, Network } from 'lucide-react';
 
 const nodeTypes: NodeTypes = {
@@ -185,9 +186,7 @@ function Flow() {
             {/* 2. Main Content Body */}
             <div className="flex-1 relative pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]" onDragOver={onDragOver} onDrop={onDrop}>
                 {/* Adsense Slot (Desktop Only) - Right Side */}
-                <div id="ad-slot-side" className="hidden md:block absolute top-[60px] right-2 w-[160px] h-[600px] pointer-events-none z-0 border border-white/5 bg-white/5 border-dashed rounded-lg opacity-20 hover:opacity-100 transition-opacity">
-                    <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase -rotate-90">Ad Space</div>
-                </div>
+
 
                 {editorMode === 'SLOT' ? (
                     <SlotMode />
@@ -221,7 +220,25 @@ function Flow() {
                     </ReactFlow>
                 )}
 
-                <RockPanel /> {/* Mission 25-E: Rock Visuals */}
+                {/* UI Overlay: Ad + HUD + RockPanel */}
+                <div className="absolute inset-0 z-30 pointer-events-none flex flex-col overflow-hidden">
+                    {/* Ad Placeholder (Top) */}
+                    <AdPlaceholder slotId="ad-top" />
+
+                    {/* Stats & HUD Row */}
+                    <div className="grid grid-cols-3 gap-2 px-2 pt-2 items-start w-full max-w-6xl mx-auto">
+                        <div className="flex justify-start pointer-events-auto">
+                            <MiningHUD />
+                        </div>
+                        <div className="flex justify-center pointer-events-auto mt-8 sm:mt-0">
+                            <RockPanel />
+                        </div>
+                        <div className="flex justify-end pointer-events-auto">
+                            {/* Future Right Controls */}
+                        </div>
+                    </div>
+                </div>
+
                 <ShopPanel />
                 <MineLogsPanel />
             </div>
