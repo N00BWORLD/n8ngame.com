@@ -20,6 +20,9 @@ export interface ExecutionContext {
     /** Current remaining Execution Budget */
     gasRemaining: number;
     status: 'running' | 'completed' | 'failed' | 'out_of_gas';
+    // Mission 13: Credits Economy
+    creditsDelta: number;
+    multiplier: number;
 }
 
 export interface ExecutionConfig {
@@ -45,6 +48,7 @@ export interface EngineResult {
     logs: ExecutionLog[];
     finalState: Record<string, any>;
     error?: string;
+    creditsDelta?: number; // Mission 13
 }
 
 export const DEFAULT_ENGINE_CONFIG: ExecutionConfig = {

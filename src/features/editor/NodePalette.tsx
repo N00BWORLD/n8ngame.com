@@ -7,6 +7,10 @@ const NODE_TYPES = [
     { type: 'trigger', label: 'Trigger', icon: <Play className="h-3 w-3" />, color: 'text-green-500 bg-green-500/10' },
     { type: 'action', label: 'Action', icon: <Zap className="h-3 w-3" />, color: 'text-blue-500 bg-blue-500/10' },
     { type: 'variable', label: 'Variable', icon: <Database className="h-3 w-3" />, color: 'text-orange-500 bg-orange-500/10' },
+    // Mission 13
+    { type: 'generator', label: 'Generator', icon: <Zap className="h-3 w-3" />, color: 'text-yellow-500 bg-yellow-500/10' },
+    { type: 'booster', label: 'Booster', icon: <Zap className="h-3 w-3" />, color: 'text-purple-500 bg-purple-500/10' },
+    { type: 'sink', label: 'Sink', icon: <Zap className="h-3 w-3" />, color: 'text-red-500 bg-red-500/10' },
 ] as const;
 
 export function NodePalette() {
@@ -14,7 +18,7 @@ export function NodePalette() {
     // Removed unused setNodes hook usage since we use getState inside handler
     // const setNodes = useFlowStore((state) => state.setNodes);
 
-    const addNodeCenter = (type: 'trigger' | 'action' | 'variable', label: string) => {
+    const addNodeCenter = (type: 'trigger' | 'action' | 'variable' | 'generator' | 'booster' | 'sink', label: string) => {
         const id = `${type}-${Date.now()}`;
         const center = screenToFlowPosition({
             x: window.innerWidth / 2,

@@ -23,10 +23,34 @@ export const actionRuntime: NodeRuntime = {
 export const variableRuntime: NodeRuntime = {
     execute: async (_node, context) => {
         // Determine variable name/value from node data (mocked for now)
-        // In a real app, node.data.key would hold the variable name
         return {
             count: (context.variables.count || 0) + 1
         };
+    }
+};
+
+// Mission 13: New Nodes
+export const generatorRuntime: NodeRuntime = {
+    execute: async (_node, context) => {
+        const generated = 10 * context.multiplier;
+        context.creditsDelta += generated;
+        context.multiplier = 1; // Reset multiplier after use
+        return { generated };
+    }
+};
+
+export const boosterRuntime: NodeRuntime = {
+    execute: async (_node, context) => {
+        context.multiplier = 1.5;
+        return { boosted: true };
+    }
+};
+
+export const sinkRuntime: NodeRuntime = {
+    execute: async (_node, context) => {
+        const cost = 5;
+        context.creditsDelta -= cost;
+        return { consumed: cost };
     }
 };
 
@@ -35,6 +59,9 @@ export function getGasCost(kind: string): number {
         case 'action': return 10;
         case 'variable': return 1;
         case 'trigger': return 0;
+        case 'generator': return 5;
+        case 'booster': return 2;
+        case 'sink': return 1;
         default: return 1;
     }
 }

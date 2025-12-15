@@ -20,6 +20,10 @@ const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
     action: ActionNode,
     variable: VariableNode,
+    // Mission 13: Reuse ActionNode for now
+    generator: ActionNode,
+    booster: VariableNode, // Reuse Variable for visual distinction
+    sink: ActionNode,
 };
 
 function Flow() {

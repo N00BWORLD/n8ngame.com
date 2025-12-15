@@ -16,7 +16,4 @@ export type VariableNodeData = NodeData & {
     value?: unknown;
 };
 
-export type AppNode =
-    | Node<TriggerNodeData, 'trigger'>
-    | Node<ActionNodeData, 'action'>
-    | Node<VariableNodeData, 'variable'>;
+export type AppNode = Node<NodeData, 'trigger' | 'action' | 'variable' | 'generator' | 'booster' | 'sink'>;

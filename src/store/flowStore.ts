@@ -67,10 +67,18 @@ interface FlowState {
     setHelpOpen: (isOpen: boolean) => void;
 
     // Result State (Mission 12-A)
+    // Mission 12-A: Result Card
     isResultOpen: boolean;
     setResultOpen: (isOpen: boolean) => void;
-    lastExecutionResult: any; // Using any for MVP flexibility as per requirement
+    lastExecutionResult: any;
     setLastExecutionResult: (result: any) => void;
+
+    // Mission 13: Credits & AutoRun
+    credits: number;
+    setCredits: (credits: number) => void;
+    isAutoRun: boolean;
+    toggleAutoRun: () => void;
+    setAutoRun: (active: boolean) => void;
 }
 
 export const useFlowStore = create<FlowState>((set, get) => ({
@@ -103,6 +111,16 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     setResultOpen: (isOpen) => set({ isResultOpen: isOpen }),
     lastExecutionResult: null,
     setLastExecutionResult: (result) => set({ lastExecutionResult: result }),
+
+    // Mission 13: Credits & AutoRun
+    credits: parseInt(localStorage.getItem('n8ngame_local_credits') || '0', 10),
+    setCredits: (credits) => {
+        localStorage.setItem('n8ngame_local_credits', credits.toString());
+        set({ credits });
+    },
+    isAutoRun: false,
+    toggleAutoRun: () => set((state) => ({ isAutoRun: !state.isAutoRun })),
+    setAutoRun: (active) => set({ isAutoRun: active }),
 
 
     onPaneClick: () => {
@@ -190,6 +208,26 @@ export const useFlowStore = create<FlowState>((set, get) => ({
                 result = await executeRemote(blueprint, config);
             } else {
                 result = await executeBlueprint(blueprint, config);
+
+                // Mission 13: Handle Credits
+                if (result.creditsDelta !== undefined) {
+                    const currentCredits = get().credits;
+                    const newTotal = currentCredits + result.creditsDelta;
+
+                    if (get().isAutoRun && newTotal < 0) {
+                        set({ isAutoRun: false });
+                        // Add bankruptcy log
+                        result.logs.push({
+                            nodeId: 'system',
+                            nodeKind: 'system',
+                            timestamp: Date.now(),
+                            gasUsed: 0,
+                            error: 'BANKRUPTCY! Auto Run stopped.'
+                        });
+                    } else {
+                        get().setCredits(newTotal);
+                    }
+                }
             }
 
             set({ executionLogs: result.logs });

@@ -1,13 +1,16 @@
 import { Blueprint } from '../graph/types';
 import { analyzeGraph } from '../graph/analyzer';
 import { DEFAULT_ENGINE_CONFIG, EngineResult, ExecutionConfig, ExecutionContext, NodeRuntime } from './types';
-import { triggerRuntime, actionRuntime, variableRuntime, getGasCost } from './runtimes';
+import { triggerRuntime, actionRuntime, variableRuntime, generatorRuntime, boosterRuntime, sinkRuntime, getGasCost } from './runtimes';
 
 // Registry for Node Runtimes
 const runtimeRegistry: Record<string, NodeRuntime> = {
     'trigger': triggerRuntime,
     'action': actionRuntime,
     'variable': variableRuntime,
+    'generator': generatorRuntime,
+    'booster': boosterRuntime,
+    'sink': sinkRuntime,
 };
 
 export function registerRuntime(kind: string, runtime: NodeRuntime) {
@@ -27,6 +30,8 @@ export async function executeBlueprint(
         logs: [],
         gasRemaining: config.maxGas ?? DEFAULT_ENGINE_CONFIG.maxGas,
         status: 'running',
+        creditsDelta: 0,
+        multiplier: 1,
     };
 
     if (!analysis.success || !analysis.order) {
@@ -122,6 +127,7 @@ export async function executeBlueprint(
     return {
         logs: context.logs,
         finalState: context.variables,
-        error: executionError
+        error: executionError,
+        creditsDelta: context.creditsDelta
     };
 }

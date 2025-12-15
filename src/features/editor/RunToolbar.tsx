@@ -1,12 +1,12 @@
 
-import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle } from 'lucide-react';
+import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle, Repeat } from 'lucide-react';
 import { useFlowStore } from '@/store/flowStore';
 import { useState, useEffect } from 'react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
 import { useUiStore } from '@/store/uiStore';
 
 export function RunToolbar() {
-    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen } = useFlowStore();
+    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen, credits, isAutoRun, toggleAutoRun } = useFlowStore();
     const { t } = useUiStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isN8NRunning, setIsN8NRunning] = useState(false);
@@ -16,6 +16,17 @@ export function RunToolbar() {
     const statusText = (isRunning || isN8NRunning)
         ? t('ui.status.running')
         : (executionLogs.length > 0 ? t('ui.status.completed') : t('ui.status.ready'));
+
+    // Auto Run Loop (Mission 13)
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isAutoRun && !isRunning) {
+            interval = setInterval(() => {
+                runGraph();
+            }, 3000); // 3 seconds tick
+        }
+        return () => clearInterval(interval);
+    }, [isAutoRun, isRunning, runGraph]);
 
     // Initial Server Check
     useEffect(() => {
@@ -183,6 +194,16 @@ export function RunToolbar() {
 
                     <div className="h-6 w-px bg-white/10 mx-1" />
 
+                    <div className="h-6 w-px bg-white/10 mx-1" />
+
+                    {/* Mission 13: Credits HUD */}
+                    <div className="flex items-center gap-2 px-2 py-1 bg-black/40 rounded border border-white/10">
+                        <span className="text-xs text-yellow-500 font-bold">CREDITS</span>
+                        <span className="text-xl font-mono font-bold text-white is-neon">{credits.toLocaleString()}</span>
+                    </div>
+
+                    <div className="h-6 w-px bg-white/10 mx-1" />
+
                     <button
                         onClick={runGraph}
                         disabled={isRunning || isN8NRunning}
@@ -194,6 +215,20 @@ export function RunToolbar() {
                     >
                         <Play className={`h-4 w-4 ${isRunning ? 'animate-pulse' : 'fill-current'}`} />
                         <span>{isRunning ? t('ui.status.running') : t('btn.run')}</span>
+                    </button>
+
+                    {/* Mission 13: Auto Run Toggle */}
+                    <button
+                        onClick={toggleAutoRun}
+                        disabled={isRunning && !isAutoRun}
+                        className={`flex items-center gap-2 rounded px-3 py-2 font-bold text-white transition-all
+                            ${isAutoRun
+                                ? 'bg-green-600 outline outline-2 outline-green-400'
+                                : 'bg-gray-700 hover:bg-gray-600'
+                            }`}
+                        title="Toggle Auto Run (3s)"
+                    >
+                        <Repeat className={`h-4 w-4 ${isAutoRun ? 'animate-spin-slow' : ''}`} />
                     </button>
 
                     {/* Mission 11-C: Run via n8n */}
