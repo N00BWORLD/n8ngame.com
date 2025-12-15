@@ -169,7 +169,7 @@ export function RunToolbar() {
                                 }`}
                         >
                             <Cpu className="h-3.5 w-3.5" />
-                            Local
+                            <span className="hidden sm:inline">Local</span>
                         </button>
 
                         <div className="relative group">
@@ -182,7 +182,7 @@ export function RunToolbar() {
                                     }`}
                             >
                                 <Globe className="h-3.5 w-3.5" />
-                                Remote
+                                <span className="hidden sm:inline">Remote</span>
                             </button>
                             {!serverHealthy && (
                                 <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-900 text-xs text-gray-300 rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity z-[100] pointer-events-none">
@@ -194,12 +194,17 @@ export function RunToolbar() {
 
                     <div className="h-6 w-px bg-white/10 mx-1" />
 
-                    <div className="h-6 w-px bg-white/10 mx-1" />
-
-                    {/* Mission 13: Credits HUD */}
-                    <div className="flex items-center gap-2 px-2 py-1 bg-black/40 rounded border border-white/10">
-                        <span className="text-xs text-yellow-500 font-bold">CREDITS</span>
-                        <span className="text-xl font-mono font-bold text-white is-neon">{credits.toLocaleString()}</span>
+                    {/* Mission 13: Credits & Gas HUD */}
+                    <div className="flex items-center gap-3 px-3 py-1 bg-black/50 rounded-lg border border-white/10 backdrop-blur-md shadow-xl">
+                        <div className="flex items-center gap-1.5" title="Execution Budget (Gas)">
+                            <Zap className="h-3 w-3 text-cyan-400 fill-cyan-400/50" />
+                            <span className="text-sm font-mono font-bold text-cyan-100">100</span>
+                        </div>
+                        <div className="h-4 w-px bg-white/20" />
+                        <div className="flex items-center gap-1.5" title="Project Credits">
+                            <span className="text-[10px] text-yellow-500 font-bold tracking-wider">CR</span>
+                            <span className="text-lg font-mono font-bold text-white is-neon tracking-wide">{credits.toLocaleString()}</span>
+                        </div>
                     </div>
 
                     <div className="h-6 w-px bg-white/10 mx-1" />
@@ -214,7 +219,7 @@ export function RunToolbar() {
                             }`}
                     >
                         <Play className={`h-4 w-4 ${isRunning ? 'animate-pulse' : 'fill-current'}`} />
-                        <span>{isRunning ? t('ui.status.running') : t('btn.run')}</span>
+                        <span className="hidden sm:inline">{isRunning ? t('ui.status.running') : t('btn.run')}</span>
                     </button>
 
                     {/* Mission 13: Auto Run Toggle */}
@@ -223,7 +228,7 @@ export function RunToolbar() {
                         disabled={isRunning && !isAutoRun}
                         className={`flex items-center gap-2 rounded px-3 py-2 font-bold text-white transition-all
                             ${isAutoRun
-                                ? 'bg-green-600 outline outline-2 outline-green-400'
+                                ? 'bg-green-600 outline outline-2 outline-green-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]'
                                 : 'bg-gray-700 hover:bg-gray-600'
                             }`}
                         title="Toggle Auto Run (3s)"
@@ -237,14 +242,14 @@ export function RunToolbar() {
                             onClick={handleRunN8N}
                             disabled={isRunning || isN8NRunning || !serverHealthy}
                             className={`flex items-center gap-2 rounded px-4 py-2 font-bold text-white transition-all
-                                ${isN8NRunning || !serverHealthy
+                            ${isN8NRunning || !serverHealthy
                                     ? 'bg-gray-700 cursor-not-allowed'
                                     : 'bg-gradient-to-r from-orange-600 to-red-500 hover:scale-105 active:scale-95 shadow-lg shadow-orange-900/20'
                                 }`}
                             title={t('btn.runViaN8n')}
                         >
                             <Zap className={`h-4 w-4 ${isN8NRunning ? 'animate-pulse' : 'fill-current'}`} />
-                            <span>{isN8NRunning ? 'n8n...' : 'n8n'}</span>
+                            <span className="hidden lg:inline">{isN8NRunning ? 'n8n...' : 'n8n'}</span>
                         </button>
                         {!serverHealthy && (
                             <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-900 text-xs text-gray-300 rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity z-[100] pointer-events-none">
@@ -274,11 +279,6 @@ export function RunToolbar() {
                         >
                             <Trophy className="h-4 w-4" />
                         </button>
-                        {!serverHealthy && (
-                            <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-900 text-xs text-gray-300 rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity z-[100] pointer-events-none">
-                                Server Required
-                            </div>
-                        )}
                     </div>
 
                     {/* Mission 11-H: Help */}
