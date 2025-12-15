@@ -118,3 +118,9 @@ venv*/
 *.pdf
 **/node_modules/
 **/dist/
+
+st/
+venv*/
+*.pdf
+**/node_modules/
+**/dist/
