@@ -7,7 +7,6 @@ import { VariableNode } from '@/features/editor/nodes/VariableNode';
 import { NodePalette } from '@/features/editor/NodePalette';
 import { RunToolbar } from '@/features/editor/RunToolbar';
 import { StorageControls } from '@/features/storage/StorageControls';
-import { Terminal } from '@/features/ui/Terminal';
 import { useFlowStore } from '@/store/flowStore';
 import { InventoryModal } from '@/features/inventory/InventoryModal';
 import { MissionPanel } from '@/features/missions/MissionPanel';
@@ -16,19 +15,18 @@ import { initUiSettings } from '@/store/uiStore';
 import { TopLeftControls } from '@/components/TopLeftControls';
 import { ResultCard } from '@/components/ResultCard';
 import { ShopModal } from '@/features/economy/ShopModal';
-import { MiningPanel } from '@/features/ui/MiningPanel';
 import { BlueprintsModal } from '@/features/storage/BlueprintsModal';
 import { Trash2 } from 'lucide-react';
 import { SlotsScreen } from '@/features/slots/SlotsScreen';
-// import { InventoryDrawer } from '@/features/inventory/InventoryDrawer'; // If this doesn't exist, don't import it. Assuming InventoryModal is the one.
+import { MiningHUD } from '@/features/mining/MiningHUD';
+import { MineLogsPanel } from '@/features/mining/MineLogsPanel';
 
 const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
     action: ActionNode,
     variable: VariableNode,
-    // Mission 13: Reuse ActionNode for now
     generator: ActionNode,
-    booster: VariableNode, // Reuse Variable for visual distinction
+    booster: VariableNode,
     sink: ActionNode,
 };
 
@@ -38,12 +36,8 @@ function Flow() {
     } = useFlowStore();
     const { screenToFlowPosition, deleteElements } = useReactFlow();
 
-    // Mission 21-C: Selection State
     const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
     const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
-
-    // Mission 22-A: View Mode
-    // Default to STATION unless VITE_SHOW_EDITOR is explicitly true
     const showEditor = import.meta.env.VITE_SHOW_EDITOR === 'true';
     const [viewMode, setViewMode] = useState<'GRAPH' | 'STATION'>('STATION');
 
@@ -85,7 +79,6 @@ function Flow() {
         addNode(newNode as any);
     };
 
-    // Keyboard Shortcuts (Keep them active/passive or irrelevant in Station mode? Likely irrelevant but harmless)
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
@@ -94,7 +87,6 @@ function Flow() {
                 event.shiftKey ? useFlowStore.getState().redo() : useFlowStore.getState().undo();
                 return;
             }
-            // ... Shortcuts logic ...
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
@@ -103,14 +95,16 @@ function Flow() {
     // RENDER STATION MODE (Full Screen)
     if (viewMode === 'STATION') {
         return (
-            <div className="relative w-screen h-screen">
+            <div className="relative w-screen h-screen bg-black">
                 <SlotsScreen />
 
-                {/* Dev Toggle to go back to Graph if enabled */}
+                <MiningHUD />
+                <MineLogsPanel />
+
                 {showEditor && (
                     <button
                         onClick={() => setViewMode('GRAPH')}
-                        className="fixed bottom-4 right-4 z-[60] bg-black/50 text-white text-xs px-2 py-1 rounded border border-white/20"
+                        className="fixed bottom-32 right-4 z-[60] bg-black/50 text-white text-xs px-2 py-1 rounded border border-white/20"
                     >
                         Dev: Graph
                     </button>
@@ -126,7 +120,6 @@ function Flow() {
                 <div className="flex items-center gap-4">
                     <TopLeftControls />
 
-                    {/* View Mode Toggle */}
                     <div className="flex bg-black/40 rounded-lg p-1 border border-white/10">
                         <button
                             disabled
@@ -163,11 +156,10 @@ function Flow() {
                     fitView
                 >
                     <Background color="#111" gap={16} />
-                    <Controls position="bottom-right" className="bg-gray-800/80 border-gray-700 text-white fill-white mb-16 mr-2 sm:mb-2 sm:mr-2" />
+                    <Controls position="bottom-right" className="bg-gray-800/80 border-gray-700 text-white fill-white mb-24 mr-2 sm:mb-2 sm:mr-2" />
 
                     <NodePalette />
                     <StorageControls />
-                    <Terminal />
                     <InventoryModal />
                     <MissionPanel />
                     <ResultCard />
@@ -188,11 +180,8 @@ function Flow() {
                     )}
                 </ReactFlow>
 
-                <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-40 flex flex-col items-end gap-2 pointer-events-none origin-top-right scale-90 sm:scale-100">
-                    <div className="pointer-events-auto">
-                        <MiningPanel />
-                    </div>
-                </div>
+                <MiningHUD />
+                <MineLogsPanel />
             </div>
         </div >
     );
