@@ -515,6 +515,37 @@ export async function apiRoutes(fastify, options) {
             }
         });
 
+        // POST /api/mine (Mission N8N-MINE-MVP-1)
+        privateRoutes.post('/mine', async (request, reply) => {
+            const { elapsedSec, state, loadout } = request.body || {};
+            const userId = request.user.id;
+            const n8nUrl = process.env.N8N_WEBHOOK_URL ? `${process.env.N8N_WEBHOOK_URL.replace(/\/$/, '')}/text-mine/run` : null;
+
+            if (!n8nUrl) {
+                return { ok: false, error: "Server Required (N8N_WEBHOOK_URL missing)" };
+            }
+
+            try {
+                const response = await fetch(n8nUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, elapsedSec, state, loadout })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    return { ok: false, error: `n8n Error: ${text}` };
+                }
+
+                const json = await response.json();
+                return json;
+
+            } catch (err) {
+                request.log.error(err);
+                return { ok: false, error: `Proxy Error: ${err.message}` };
+            }
+        });
+
     });
 }
 

@@ -16,6 +16,7 @@ import { initUiSettings } from '@/store/uiStore';
 import { TopLeftControls } from '@/components/TopLeftControls';
 import { ResultCard } from '@/components/ResultCard';
 import { ShopModal } from '@/features/economy/ShopModal';
+import { MiningPanel } from '@/features/ui/MiningPanel';
 
 const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
@@ -165,6 +166,7 @@ function Flow() {
                 <Terminal />
                 <InventoryModal />
                 <MissionPanel />
+                <MiningPanel />
                 <ResultCard />
                 <StorageControls />
                 <InventoryModal />

@@ -108,6 +108,18 @@ interface FlowState {
     // Mission API-UI-1: Text Game
     textState: string;
     runText: (inputText: string) => Promise<void>;
+
+    // Mission API-UI-MINE-1: Mining
+    mineState: {
+        rockHp: number;
+        rockMaxHp: number;
+        rockLevel: number;
+        gold: number;
+        lastTs: number;
+    };
+    isMiningAuto: boolean;
+    toggleMiningAuto: () => void;
+    runMine: (elapsedSec: number) => Promise<void>;
 }
 
 export const useFlowStore = create<FlowState>((set, get) => ({
@@ -313,6 +325,89 @@ export const useFlowStore = create<FlowState>((set, get) => ({
                     gasUsed: 0,
                     error: `[Error] ${err.message}`
                 }]
+            }));
+        }
+    },
+
+    // Mission API-UI-MINE-1: Mining Implementation
+    mineState: { rockHp: 100, rockMaxHp: 100, rockLevel: 1, gold: 0, lastTs: Date.now() },
+    isMiningAuto: false,
+    toggleMiningAuto: () => set((state) => ({ isMiningAuto: !state.isMiningAuto })),
+
+    runMine: async (elapsedSec: number) => {
+        const { mineState } = get();
+
+        // Request Body
+        const payload = {
+            elapsedSec,
+            state: mineState,
+            loadout: { dps: 7, goldBonusPct: 0 } // MVP Fixed Loadout
+        };
+
+        try {
+            const response = await fetch('/api/mine', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json(); // { ok, lines, rewards, nextState, error }
+
+            if (!data.ok) {
+                // Handle "Server Required" or Errors
+                set((state) => ({
+                    executionLogs: [...state.executionLogs, {
+                        nodeId: 'MINE',
+                        nodeKind: 'system',
+                        timestamp: Date.now(),
+                        gasUsed: 0,
+                        error: `[Mine Failed] ${data.error || 'Server Required'}`
+                    }],
+                    isMiningAuto: false // Stop auto on error
+                }));
+                return;
+            }
+
+            // Success Updates
+            const lines = data.lines || [];
+            const nextState = data.nextState || mineState;
+            const rewards = data.rewards || {};
+            const goldGained = rewards.goldGained || 0;
+
+            // Logs
+            const newLogs = lines.map((line: string) => ({
+                nodeId: 'MINE',
+                nodeKind: 'action',
+                timestamp: Date.now(),
+                gasUsed: 0,
+                error: line
+            }));
+
+            // Summary Log
+            newLogs.push({
+                nodeId: 'MINE',
+                nodeKind: 'system', // Yellow
+                timestamp: Date.now(),
+                gasUsed: 0,
+                error: `[SUMMARY] +${goldGained}g | Lv.${nextState.rockLevel} HP ${nextState.rockHp}/${nextState.rockMaxHp} | Total ${nextState.gold}g`
+            });
+
+            set((state) => ({
+                mineState: { ...nextState, lastTs: Date.now() }, // Update local TS
+                executionLogs: [...state.executionLogs, ...newLogs]
+            }));
+
+        } catch (e: any) {
+            console.error(e);
+            set((state) => ({
+                executionLogs: [...state.executionLogs, {
+                    nodeId: 'MINE',
+                    nodeKind: 'system',
+                    timestamp: Date.now(),
+                    gasUsed: 0,
+                    error: `[Network Error] API unreachable`
+                }],
+                isMiningAuto: false
             }));
         }
     },
