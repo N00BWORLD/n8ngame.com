@@ -20,7 +20,7 @@ export function InventorySheet() {
     // Mobile friendly: Full width cards.
     // Let's group by Slot Type for clarity.
 
-    const slotTypes: SlotType[] = ['TRIGGER', 'DAMAGE', 'GOLD', 'UTILITY'];
+    const slotTypes: SlotType[] = ['TRIGGER', 'BOOST', 'OUTPUT'];
 
     return (
         <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-none">

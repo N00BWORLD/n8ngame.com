@@ -38,12 +38,11 @@ export function NodeWrapper({ children, id, title, icon, colorClass, selected, e
                 colorClass
             )}
         >
-            {/* Delete Button (Mission 21-C) */}
-            {/* Delete Button (Mission 21-C / 25-B) */}
+            {/* Delete Button */}
             <button
                 onClick={handleDelete}
                 className={cn(
-                    "absolute -top-3 -right-3 z-50 p-2 bg-red-500 text-white rounded-full transition-all shadow-md hover:bg-red-600 focus:outline-none scroll-m-2",
+                    "absolute -top-3 -right-3 z-50 p-1 bg-red-500 text-white rounded-full transition-all shadow-md hover:bg-red-600 focus:outline-none scroll-m-2",
                     // Mobile: Always visible if selected, otherwise opacity-0 but accessible
                     // Desktop: group-hover visible
                     selected ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-0 group-hover:scale-100"

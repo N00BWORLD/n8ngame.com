@@ -8,16 +8,15 @@ export interface LoadoutStats {
 
 /**
  * Calculate upgrade cost: ceil(baseCost * 1.45^level)
- * Defaults: Trigger 50, Damage 60, Gold 55, Utility 80
+ * Defaults: Trigger 50, Boost 80, Output 60
  */
 export function getUpgradeCost(item: SlotItem): number {
     let baseCost = item.baseCost;
     if (!baseCost) {
         switch (item.slotType) {
             case 'TRIGGER': baseCost = 50; break;
-            case 'DAMAGE': baseCost = 60; break;
-            case 'GOLD': baseCost = 55; break;
-            case 'UTILITY': baseCost = 80; break;
+            case 'BOOST': baseCost = 80; break;
+            case 'OUTPUT': baseCost = 60; break;
             default: baseCost = 50;
         }
     }
@@ -29,34 +28,33 @@ export function getUpgradeCost(item: SlotItem): number {
  */
 export function getItemStats(item: SlotItem) {
     const level = item.level;
-
-    // Base Value from Item or reasonable defaults if missing
-    // Note: catalog.ts should have these baseValues.
     const baseVal = item.baseValue || 0;
 
-    switch (item.slotType) {
-        case 'TRIGGER':
-            // "intervalSec = max(60, baseInterval - level*30)"
-            // baseValue here is assumed to be the Interval in Seconds (e.g. 600) based on Spec 22-B.
-            // If item.baseValue is 600.
-            const baseInterval = baseVal || 600;
+    switch (item.effectType) {
+        case 'interval':
+            // baseInterval - 30s per level
+            const baseInterval = item.baseInterval || 600;
             const intervalSec = Math.max(60, baseInterval - (level * 30));
             return { intervalSec };
 
-        case 'DAMAGE':
-            // "value = baseValue * 1.20^level"
+        case 'dps_flat':
+            // DPS * 1.2^level
             const dps = Math.floor((baseVal || 1) * Math.pow(1.20, level));
             return { dps };
 
-        case 'GOLD':
-            // "value = baseValue + (level * 5)"
+        case 'gold_pct':
+            // base + (level * 5)
             const goldBonusPct = baseVal + (level * 5);
             return { goldBonusPct };
 
-        case 'UTILITY':
-            // Spec 25-C: Utility as DPS Boost (+%)
-            const dpsBoostPct = baseVal + (level * 2); // Base + 2% per level?
+        case 'dps_mult':
+            // base + (level * 2)
+            const dpsBoostPct = baseVal + (level * 2);
             return { dpsBoostPct };
+
+        case 'none':
+            if (item.slotType === 'TRIGGER') return { intervalSec: 999999 };
+            return {};
 
         default:
             return {};
@@ -69,8 +67,8 @@ export function getItemStats(item: SlotItem) {
 export function computeLoadout(equippedItems: (SlotItem | undefined)[]): LoadoutStats {
     let dps = 0;
     let goldBonusPct = 0;
-    let intervalSec = 600; // Base default 600s
-    let dpsMultiplier = 1; // Base multiplier
+    let intervalSec = 600;
+    let dpsMultiplier = 1;
 
     let hasTrigger = false;
     let hasDamage = false;
@@ -90,30 +88,25 @@ export function computeLoadout(equippedItems: (SlotItem | undefined)[]): Loadout
             dpsMultiplier += (stats.dpsBoostPct / 100);
         }
         if (stats.intervalSec !== undefined) {
-            // "Manual Run" might return 0
-            if (stats.intervalSec > 0) {
+            if (stats.intervalSec > 0 && stats.intervalSec < 999999) {
+                // Take specific interval if multiple? Assuming only 1 trigger.
                 intervalSec = stats.intervalSec;
                 hasTrigger = true;
-            } else {
-                // Manual only (interval 0 or very high?)
-                // If 0, we might strictly disable auto-run in useAutoRun.
-                // For now, let's keep 600 but rely on another flag, OR set specific value.
-                // If interval is 0, let's treat as Manual (very long interval)
+            } else if (stats.intervalSec >= 999999) {
                 intervalSec = 999999;
                 hasTrigger = true;
             }
         }
     });
 
-    // Defaults per Spec
-    if (!hasDamage && dps === 0) dps = 1;
+    if (!hasDamage && dps === 0) dps = 0; // Don't force 1 if user equipped nothing. Base loadout from blueprint handles base. 
+    // Wait, previous logic forced 1. 26-B logic adds blueprint dps + slot dps.
+    // So 0 is fine.
+
     // Apply Multiplier
     dps = Math.floor(dps * dpsMultiplier);
 
-    if (!hasTrigger) intervalSec = 600;
-
-    // Defaults per Spec 22-B
-    if (!hasDamage && dps === 0) dps = 1;
+    // If trigger missing, default 600
     if (!hasTrigger) intervalSec = 600;
 
     return {
@@ -122,3 +115,4 @@ export function computeLoadout(equippedItems: (SlotItem | undefined)[]): Loadout
         intervalSec
     };
 }
+

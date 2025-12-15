@@ -24,6 +24,7 @@ import { SlotMode } from '@/features/slots/SlotMode';
 import { RockPanel } from '@/features/mining/RockPanel'; // Mission 25-E
 import { AdPlaceholder } from '@/features/ads/AdPlaceholder';
 import { LayoutGrid, Network } from 'lucide-react';
+import { SelectionToolbar } from '@/features/editor/SelectionToolbar';
 
 const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
@@ -140,9 +141,11 @@ function Flow() {
     return (
         <div className="flex flex-col h-screen w-screen bg-black overflow-hidden font-sans selection:bg-cyan-500/30">
             {/* 1. Fixed Header */}
-            <div className="flex-none h-12 sm:h-14 bg-[#111] border-b border-white/10 z-50 flex items-center justify-between px-2 sm:px-4 pt-[env(safe-area-inset-top)]">
+            <div className="flex-none h-12 sm:h-14 bg-[#111] border-b border-white/10 z-50 flex items-center justify-between px-2 sm:px-4 pt-[env(safe-area-inset-top)] overflow-x-auto no-scrollbar">
                 <div className="flex items-center gap-4">
-                    <TopLeftControls />
+                    <div className="hidden sm:block">
+                        <TopLeftControls />
+                    </div>
 
                     {/* Mission 25-C: Mode Toggle */}
                     <div className="flex bg-black/40 rounded-lg p-1 border border-white/10">
@@ -217,6 +220,7 @@ function Flow() {
                         <HelpModal />
                         <ShopModal />
                         <BlueprintsModal />
+                        <SelectionToolbar />
                     </ReactFlow>
                 )}
 

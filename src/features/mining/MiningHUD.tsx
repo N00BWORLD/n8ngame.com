@@ -1,15 +1,19 @@
 import { useFlowStore } from '@/store/flowStore';
-import { toNumber } from '@/lib/bigNum';
+import { useSlotStore } from '@/store/slotStore';
+import { toNumber, formatBigNum } from '@/lib/bigNum';
 import { formatCompact } from '@/lib/format';
-import { Pickaxe, Clock, Ticket } from 'lucide-react';
+import { Pickaxe, Clock, Ticket, Zap, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAutoRun } from './useAutoRun';
 import { formatTimeMMSS } from '@/lib/time';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
+import { compileBlueprintToLoadout } from '@/features/engine/mining/loadoutCompiler';
+import { computeLoadout } from '@/features/slots/utils';
 
 export function MiningHUD() {
-    const { mineState, runMine, n8nStatus, isRunning, setShopOpen } = useFlowStore();
+    const { mineState, runMine, n8nStatus, isRunning, setShopOpen, nodes, upgrades, goldUpgrades, premiumUpgrades } = useFlowStore();
+    const { inventory, equipped } = useSlotStore();
     const { gold, tickets } = mineState;
     const { enabled, toggle, secondsLeft, resetTimer } = useAutoRun();
     const [isAnimating, setIsAnimating] = useState(false);
@@ -20,6 +24,41 @@ export function MiningHUD() {
     const animGold = useAnimatedNumber(toNumber(gold));
     const animTickets = useAnimatedNumber(tickets);
 
+    const stats = useMemo(() => {
+        const bLoadout = compileBlueprintToLoadout(nodes, upgrades.nodeLimit);
+
+        const equippedItems = ['TRIGGER', 'BOOST', 'OUTPUT'].map(type => {
+            const id = equipped[type as 'TRIGGER' | 'BOOST' | 'OUTPUT'];
+            return inventory.find(i => i.id === id);
+        }).filter((i): i is any => !!i);
+
+        const sLoadout = computeLoadout(equippedItems);
+
+        // DPS Calculation
+        const dpsMult = 1 + (goldUpgrades.dpsLevel * 0.10);
+        const premDpsMult = Math.pow(1.15, premiumUpgrades.dpsLvl);
+
+        // Base handling: if exponent > 0, slot base (flat) is negligible usually, but for correctness:
+        // formatted big num handles {m, e}.
+        // If e is 0, we add sLoadout.dps. If e > 0, we ignore flat addition or normalize.
+        // For simplicity in UI:
+        let baseM = bLoadout.dps.m;
+        if (bLoadout.dps.e === 0) {
+            baseM += sLoadout.dps;
+        }
+
+        const finalDpsM = baseM * dpsMult * premDpsMult;
+
+        // Gold Bonus
+        const goldVal = goldUpgrades.goldBonusLevel * 5;
+        const totalGold = (bLoadout.goldBonusPct || 0) + sLoadout.goldBonusPct + goldVal;
+
+        return {
+            dps: { m: finalDpsM, e: bLoadout.dps.e },
+            goldBonus: totalGold
+        };
+    }, [nodes, upgrades.nodeLimit, inventory, equipped, goldUpgrades, premiumUpgrades]);
+
     const handleMine = async () => {
         setIsAnimating(true);
         resetTimer();
@@ -28,7 +67,7 @@ export function MiningHUD() {
     };
 
     return (
-        <div className={cn("flex flex-col gap-2 items-start pointer-events-none transition-all", isGlobalRunning ? "opacity-90" : "opacity-100")}>
+        <div className={cn("flex flex-col gap-2 items-center pointer-events-none transition-all", isGlobalRunning ? "opacity-90" : "opacity-100")}>
 
             {/* Resources Row (Gold / Tickets) */}
             <div className="flex gap-2 pointer-events-auto">
@@ -50,8 +89,24 @@ export function MiningHUD() {
                 </div>
             </div>
 
+            {/* Stats Row */}
+            <div className="flex gap-2 opacity-80 scale-90">
+                <div className="flex items-center gap-1 bg-black/40 rounded px-1.5 py-0.5 border border-white/5">
+                    <Zap className="w-3 h-3 text-cyan-400" />
+                    <span className="text-[10px] font-mono font-bold text-cyan-100">
+                        {formatBigNum(stats.dps)} DPS
+                    </span>
+                </div>
+                <div className="flex items-center gap-1 bg-black/40 rounded px-1.5 py-0.5 border border-white/5">
+                    <Coins className="w-3 h-3 text-yellow-400" />
+                    <span className="text-[10px] font-mono font-bold text-yellow-100">
+                        +{stats.goldBonus}%
+                    </span>
+                </div>
+            </div>
+
             {/* Controls Row (Auto / Mine) */}
-            <div className="flex gap-2 pointer-events-auto mt-1">
+            <div className="flex gap-2 pointer-events-auto mt-0.5">
                 {/* Auto Toggle */}
                 <button
                     onClick={toggle}

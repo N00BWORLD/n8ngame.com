@@ -1,94 +1,22 @@
-import { useEffect, useState } from 'react';
 import { useFlowStore } from '@/store/flowStore';
-import { useReactFlow } from '@xyflow/react';
-import { X, Save, FolderOpen, Trash2, HardDrive } from 'lucide-react';
-import { StorageSlot, STORAGE_KEY_V1 } from './types';
+import { X, Save, FolderOpen, HardDrive } from 'lucide-react';
+
 
 export function BlueprintsModal() {
-    const { isBlueprintModalOpen, setBlueprintModalOpen, toBlueprint, loadBlueprint } = useFlowStore();
-    const { getViewport, setViewport } = useReactFlow();
-    const [slots, setSlots] = useState<StorageSlot[]>([]);
+    const {
+        isBlueprintModalOpen, setBlueprintModalOpen,
+        saveSlots, saveToSlot, loadSlot, clearSlot
+    } = useFlowStore();
 
-    useEffect(() => {
-        if (!isBlueprintModalOpen) return;
-        loadSlots();
-    }, [isBlueprintModalOpen]);
-
-    const loadSlots = () => {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY_V1);
-            let loadedSlots: StorageSlot[] = [];
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (parsed && Array.isArray(parsed.slots)) {
-                    loadedSlots = parsed.slots;
-                }
-            }
-
-            // Ensure 20 slots exist
-            const finalSlots: StorageSlot[] = [];
-            for (let i = 1; i <= 20; i++) {
-                const existing = loadedSlots.find(s => s.id === i);
-                if (existing) {
-                    finalSlots.push(existing);
-                } else {
-                    finalSlots.push({ id: i, name: `Slot ${i}`, updatedAt: 0 });
-                }
-            }
-            setSlots(finalSlots);
-        } catch (e) {
-            console.error('Failed to load slots', e);
-        }
+    const handleLoad = (id: number) => {
+        loadSlot(id);
+        setBlueprintModalOpen(false);
     };
 
-    const saveToLocalStorage = (newSlots: StorageSlot[]) => {
-        localStorage.setItem(STORAGE_KEY_V1, JSON.stringify({ slots: newSlots }));
-        setSlots(newSlots);
-    };
-
-    const handleSave = (id: number) => {
-        const blueprint = toBlueprint();
-        blueprint.graph.viewport = getViewport(); // Capture current viewport
-
-        const newSlots = slots.map(slot => {
-            if (slot.id === id) {
-                return {
-                    ...slot,
-                    updatedAt: Date.now(),
-                    blueprint
-                };
-            }
-            return slot;
-        });
-
-        saveToLocalStorage(newSlots);
-        console.log(`Saved to Slot ${id}`);
-    };
-
-    const handleLoad = (slot: StorageSlot) => {
-        if (!slot.blueprint) return;
-
-        try {
-            loadBlueprint(slot.blueprint);
-            if (slot.blueprint.graph.viewport) {
-                setViewport(slot.blueprint.graph.viewport);
-            }
-            setBlueprintModalOpen(false);
-            console.log(`Loaded from Slot ${slot.id}`);
-        } catch (e) {
-            console.error('Failed to load blueprint', e);
-        }
-    };
-
-    const handleClear = (id: number) => {
-        const newSlots = slots.map(slot => {
-            if (slot.id === id) {
-                return { id, name: `Slot ${id}`, updatedAt: 0, blueprint: undefined };
-            }
-            return slot;
-        });
-        saveToLocalStorage(newSlots);
-    };
+    // Actually, let's implement Rename by re-saving with new name? No that overwrites.
+    // I'll stick to: Save (prompts for name or uses generic), Load, Clear.
+    // "Rename" isn't critical if "Save" allows naming.
+    // Let's make "Save" prompt for name.
 
     if (!isBlueprintModalOpen) return null;
 
@@ -111,7 +39,7 @@ export function BlueprintsModal() {
 
                 {/* Body - Grid of Slots */}
                 <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {slots.map((slot) => {
+                    {saveSlots.map((slot) => {
                         const hasData = !!slot.blueprint;
                         return (
                             <div key={slot.id} className={`
@@ -120,10 +48,13 @@ export function BlueprintsModal() {
                             `}>
                                 <div className="flex items-start justify-between mb-3">
                                     <div className="flex flex-col">
-                                        <span className={`text-sm font-bold ${hasData ? 'text-cyan-400' : 'text-gray-500'}`}>
-                                            {slot.name}
-                                        </span>
-                                        <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-sm font-bold truncate max-w-[150px] ${hasData ? 'text-cyan-400' : 'text-gray-500'}`}>
+                                                {slot.name}
+                                            </span>
+                                            {/* Edit Name Button? */}
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">
                                             {hasData ? new Date(slot.updatedAt).toLocaleString() : 'Empty'}
                                         </span>
                                     </div>
@@ -134,35 +65,37 @@ export function BlueprintsModal() {
                                     )}
                                 </div>
 
-                                <div className="flex items-center gap-2 mt-2">
+                                <div className="grid grid-cols-2 gap-2 mt-2">
                                     <button
-                                        onClick={() => handleSave(slot.id)}
-                                        className="flex-1 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-xs py-2 rounded transition-colors"
-                                        title="Overwrite Slot"
+                                        onClick={() => {
+                                            const name = window.prompt("Save as:", slot.name) || slot.name;
+                                            saveToSlot(slot.id, name);
+                                        }}
+                                        className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-xs py-2 rounded transition-colors"
                                     >
                                         <Save className="h-3 w-3" />
                                         Save
                                     </button>
 
                                     {hasData ? (
-                                        <>
-                                            <button
-                                                onClick={() => handleLoad(slot)}
-                                                className="flex-1 flex items-center justify-center gap-2 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-400 border border-cyan-500/30 text-xs py-2 rounded transition-colors"
-                                            >
-                                                <FolderOpen className="h-3 w-3" />
-                                                Load
-                                            </button>
-                                            <button
-                                                onClick={() => handleClear(slot.id)}
-                                                className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                                                title="Clear Slot"
-                                            >
-                                                <Trash2 className="h-3 w-3" />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <div className="flex-1 opacity-0 pointer-events-none" />
+                                        <button
+                                            onClick={() => handleLoad(slot.id)}
+                                            className="flex items-center justify-center gap-2 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-400 border border-cyan-500/30 text-xs py-2 rounded transition-colors"
+                                        >
+                                            <FolderOpen className="h-3 w-3" />
+                                            Load
+                                        </button>
+                                    ) : <div />}
+
+                                    {hasData && (
+                                        <button
+                                            onClick={() => {
+                                                if (window.confirm("Clear this slot?")) clearSlot(slot.id);
+                                            }}
+                                            className="col-span-2 text-[10px] text-gray-600 hover:text-red-400 flex justify-center py-1"
+                                        >
+                                            Clear Slot
+                                        </button>
                                     )}
                                 </div>
                             </div>
@@ -170,10 +103,9 @@ export function BlueprintsModal() {
                     })}
                 </div>
 
-                {/* Footer */}
                 <div className="p-3 border-t border-white/10 bg-black/20 text-center">
                     <p className="text-[10px] text-gray-500">
-                        Local Storage • Data persists in browser only
+                        Slots are saved to your browser's local storage.
                     </p>
                 </div>
             </div>

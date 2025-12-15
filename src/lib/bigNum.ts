@@ -85,8 +85,8 @@ export function toNumber(val: BigNum | number): number {
     return val.m * Math.pow(10, val.e);
 }
 
-// 0-4: fixed suffixes (K, M, B, T)
-const SUFFIXES = ["", "K", "M", "B", "T"];
+// 0-4: fixed suffixes (start with K)
+const SUFFIXES = ["K", "M", "B", "T"];
 
 export function formatBigNum(b: BigNum): string {
     if (b.m === 0) return "0";
@@ -100,26 +100,43 @@ export function formatBigNum(b: BigNum): string {
     const val = b.m * scale;
 
     let suffix = "";
+
     if (suffixIndex < 0) {
+        // Should be covered by e < 3 check, but safety
         return Math.floor(val).toString();
     } else if (suffixIndex < SUFFIXES.length) {
         suffix = SUFFIXES[suffixIndex];
     } else {
         // Generate aa..zz
-        // index 5 (after T) -> aa
+        // index 4 (after T) -> aa
         const alphabet = "abcdefghijklmnopqrstuvwxyz";
         const alphaIndex = suffixIndex - SUFFIXES.length;
 
+        // aa, ab, ac ... az, ba ...
         const firstIdx = Math.floor(alphaIndex / 26);
         const secondIdx = alphaIndex % 26;
 
         if (firstIdx < 26) {
             suffix = alphabet[firstIdx] + alphabet[secondIdx];
         } else {
-            suffix = "zz+";
+            // After zz, go to Aaa? or just Zz+
+            // For now, support up to zz (10^(3*30) ?)
+            // T is 10^12 (group 4). Index 3. 
+            // suffixIndex 4 starts aa.
+            // 26*26 = 676 groups. Enough for e~2000.
+            if (firstIdx < 26) {
+                suffix = alphabet[firstIdx] + alphabet[secondIdx];
+            } else {
+                suffix = "AA+"; // Cap for now
+            }
         }
+        // Use uppercase AA for better readability with small numbers? 
+        // User asked for "AA...ZZ".
+        suffix = suffix.toUpperCase();
     }
 
     // Value Formatting (2 decimal places)
+    // If val >= 100, no decimal? Eatventure style usually keeps 2 decimals or 1.
+    // Let's stick to 2 decimals for now.
     return `${val.toFixed(2)}${suffix}`;
 }

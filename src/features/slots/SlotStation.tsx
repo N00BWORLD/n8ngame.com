@@ -11,7 +11,7 @@ export function SlotStation() {
     const [isInventoryOpen, setInventoryOpen] = useState(false);
     const [targetSlot, setTargetSlot] = useState<SlotType | null>(null);
 
-    const SLOTS: SlotType[] = ['TRIGGER', 'DAMAGE', 'GOLD', 'UTILITY'];
+    const SLOTS: SlotType[] = ['TRIGGER', 'BOOST', 'OUTPUT'];
 
     const handleInstallClick = (type: SlotType) => {
         setTargetSlot(type);
@@ -28,7 +28,7 @@ export function SlotStation() {
 
             {/* Main Area: Slots */}
             <div className="flex-1 flex flex-col items-center justify-start p-4 sm:p-8 overflow-y-auto">
-                <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+                <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-6 mt-8">
                     {SLOTS.map(type => (
                         <SlotCard
                             key={type}

@@ -6,7 +6,7 @@ export function SlotsRack() {
     const { getEquippedItem } = useSlotStore();
 
     // Ordered Slots
-    const SLOT_ORDER: SlotType[] = ['TRIGGER', 'DAMAGE', 'GOLD', 'UTILITY'];
+    const SLOT_ORDER: SlotType[] = ['TRIGGER', 'BOOST', 'OUTPUT'];
 
     return (
         <div className="flex-1 w-full max-w-md mx-auto p-4 overflow-y-auto pb-32">

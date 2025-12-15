@@ -1,8 +1,14 @@
 import { useFlowStore } from '@/store/flowStore';
-import { fromNumber, cmp } from '@/lib/bigNum';
-import { formatCompact } from '@/lib/format';
-import { X, TrendingUp } from 'lucide-react';
+import { fromNumber, cmp, formatBigNum } from '@/lib/bigNum';
+import { X, TrendingUp, Sword, Coins, Timer } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMemo } from 'react';
+
+const GOLD_UPGRADE_CONFIG = {
+    dps: { baseCost: 50, growth: 1.15 },
+    gold: { baseCost: 80, growth: 1.13 },
+    auto: { baseCost: 200, growth: 1.20 }
+};
 
 export function ShopPanel() {
     const {
@@ -10,26 +16,66 @@ export function ShopPanel() {
         mineState, goldUpgrades, buyGoldUpgrade
     } = useFlowStore();
 
+    const upgrades = useMemo(() => {
+        const { dpsLevel, goldBonusLevel, autoLevel } = goldUpgrades;
+        const { gold } = mineState;
+
+        // Helper to calc cost
+        const getCost = (type: 'dps' | 'gold' | 'auto', lvl: number) => {
+            const cfg = GOLD_UPGRADE_CONFIG[type];
+            return fromNumber(Math.floor(cfg.baseCost * Math.pow(cfg.growth, lvl)));
+        };
+
+        const dpsCost = getCost('dps', dpsLevel);
+        const goldCost = getCost('gold', goldBonusLevel);
+        const autoCost = getCost('auto', autoLevel);
+
+        return [
+            {
+                id: 'dps',
+                label: 'Damage Multiplier',
+                icon: Sword,
+                level: dpsLevel,
+                cost: dpsCost,
+                canAfford: cmp(gold, dpsCost) >= 0,
+                // Effect: 1 + 0.10 * Lv
+                currentEffect: `x${(1 + dpsLevel * 0.10).toFixed(1)}`,
+                nextEffect: `x${(1 + (dpsLevel + 1) * 0.10).toFixed(1)}`,
+                color: 'text-cyan-400',
+                btnColor: 'bg-cyan-600 hover:bg-cyan-500',
+                note: undefined
+            },
+            {
+                id: 'gold',
+                label: 'Gold Yield',
+                icon: Coins,
+                level: goldBonusLevel,
+                cost: goldCost,
+                canAfford: cmp(gold, goldCost) >= 0,
+                // Effect: Lv * 5%
+                currentEffect: `+${goldBonusLevel * 5}%`,
+                nextEffect: `+${(goldBonusLevel + 1) * 5}%`,
+                color: 'text-yellow-400',
+                btnColor: 'bg-yellow-600 hover:bg-yellow-500',
+                note: undefined
+            },
+            {
+                id: 'auto',
+                label: 'Auto-Run Speed',
+                icon: Timer,
+                level: autoLevel,
+                cost: autoCost,
+                canAfford: cmp(gold, autoCost) >= 0,
+                currentEffect: 'Lv.' + autoLevel,
+                nextEffect: 'Lv.' + (autoLevel + 1),
+                color: 'text-green-400',
+                btnColor: 'bg-green-600 hover:bg-green-500',
+                note: '(Optimizes interval)'
+            }
+        ] as const;
+    }, [goldUpgrades, mineState.gold]);
+
     if (!isShopOpen) return null;
-
-    const { dpsLevel, goldBonusLevel } = goldUpgrades;
-    const { gold } = mineState;
-
-    // Config (Match store)
-    const dpsCostVal = Math.floor(25 * Math.pow(1.17, dpsLevel));
-    const goldCostVal = Math.floor(40 * Math.pow(1.20, goldBonusLevel));
-
-    const dpsCost = fromNumber(dpsCostVal);
-    const goldCost = fromNumber(goldCostVal);
-
-    const canAffordDps = cmp(gold, dpsCost) >= 0;
-    const canAffordGold = cmp(gold, goldCost) >= 0;
-
-    const currentDpsBonus = Math.pow(1.15, dpsLevel).toFixed(2);
-    const nextDpsBonus = Math.pow(1.15, dpsLevel + 1).toFixed(2);
-
-
-    const nextGoldBonus = (goldBonusLevel + 1) * 5;
 
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -41,7 +87,7 @@ export function ShopPanel() {
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#202025]">
                     <div className="flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-yellow-400" />
-                        <span className="font-bold text-white text-sm tracking-wide">UPGRADES</span>
+                        <span className="font-bold text-white text-sm tracking-wide">PERMANENT UPGRADES</span>
                     </div>
                     <button
                         onClick={() => setShopOpen(false)}
@@ -53,61 +99,47 @@ export function ShopPanel() {
 
                 {/* Content */}
                 <div className="p-4 space-y-3 overflow-y-auto">
+                    {upgrades.map((u) => (
+                        <div key={u.id} className="bg-[#2a2a30] rounded-lg p-3 border border-white/5 relative group">
+                            <div className="flex justify-between items-start mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className={cn("p-2 rounded-lg bg-white/5", u.color)}>
+                                        <u.icon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="text-xs text-white/50 font-bold uppercase tracking-wider">{u.label}</div>
+                                        <div className="text-lg font-bold text-white">Lv. {u.level}</div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className={cn("font-mono font-bold text-sm", u.color)}>
+                                        {u.currentEffect} <span className="text-white/30 text-xs mx-1">&rarr;</span> {u.nextEffect}
+                                    </div>
+                                    {u.note && <div className="text-[10px] text-white/30 mt-0.5">{u.note}</div>}
+                                </div>
+                            </div>
 
-                    {/* DPS CARD */}
-                    <div className="bg-[#2a2a30] rounded-lg p-3 border border-white/5 relative group">
-                        <div className="flex justify-between items-start mb-2">
-                            <div>
-                                <div className="text-xs text-white/50 font-bold uppercase tracking-wider mb-0.5">Base Damage</div>
-                                <div className="text-lg font-bold text-white">Lv. {dpsLevel}</div>
-                            </div>
-                            <div className="text-right">
-                                <div className="text-xs text-cyan-400 font-mono">x{currentDpsBonus} &rarr; x{nextDpsBonus}</div>
-                            </div>
+                            <button
+                                onClick={() => buyGoldUpgrade(u.id as any)}
+                                disabled={!u.canAfford}
+                                className={cn(
+                                    "w-full py-2.5 rounded font-bold text-xs flex items-center justify-center gap-2 transition-all",
+                                    u.canAfford
+                                        ? cn(u.btnColor, "text-white shadow-lg active:scale-95")
+                                        : "bg-gray-800 text-gray-500 cursor-not-allowed"
+                                )}
+                            >
+                                <span>Upgrade</span>
+                                <div className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded">
+                                    <Coins className="w-3 h-3" />
+                                    <span>{formatBigNum(u.cost)}</span>
+                                </div>
+                            </button>
                         </div>
-
-                        <button
-                            onClick={() => buyGoldUpgrade('dps')}
-                            disabled={!canAffordDps}
-                            className={cn(
-                                "w-full py-2 rounded font-bold text-xs flex items-center justify-center gap-1 transition-all",
-                                canAffordDps
-                                    ? "bg-yellow-600 hover:bg-yellow-500 text-white shadow-lg shadow-yellow-900/20 active:scale-95"
-                                    : "bg-gray-700 text-gray-500 cursor-not-allowed"
-                            )}
-                        >
-                            <span>{formatCompact(dpsCostVal)} Gold</span>
-                        </button>
-                    </div>
-
-                    {/* GOLD BONUS CARD */}
-                    <div className="bg-[#2a2a30] rounded-lg p-3 border border-white/5 relative group">
-                        <div className="flex justify-between items-start mb-2">
-                            <div>
-                                <div className="text-xs text-white/50 font-bold uppercase tracking-wider">Gold Bonus</div>
-                                <div className="text-lg font-bold text-white">Lv. {goldBonusLevel}</div>
-                            </div>
-                            <div className="text-right">
-                                <div className="text-xs text-yellow-400 font-mono">+{goldBonusLevel * 5}% &rarr; +{nextGoldBonus}%</div>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={() => buyGoldUpgrade('gold')}
-                            disabled={!canAffordGold}
-                            className={cn(
-                                "w-full py-2 rounded font-bold text-xs flex items-center justify-center gap-1 transition-all",
-                                canAffordGold
-                                    ? "bg-yellow-600 hover:bg-yellow-500 text-white shadow-lg shadow-yellow-900/20 active:scale-95"
-                                    : "bg-gray-700 text-gray-500 cursor-not-allowed"
-                            )}
-                        >
-                            <span>{formatCompact(goldCostVal)} Gold</span>
-                        </button>
-                    </div>
+                    ))}
 
                     <div className="text-[10px] text-white/30 text-center mt-4">
-                        Upgrades are permanent and persist across sessions.
+                        Stats are applied automatically to all mining operations.
                     </div>
                 </div>
             </div>

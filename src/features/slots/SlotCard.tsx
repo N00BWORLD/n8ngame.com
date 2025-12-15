@@ -1,6 +1,6 @@
 import { SlotItem, SlotType } from './types';
 import { cn } from '@/lib/utils';
-import { Lock, Plus, Zap, Hammer, Coins, Cpu, ArrowUpCircle } from 'lucide-react';
+import { Lock, Plus, Zap, Coins, ArrowUpCircle } from 'lucide-react';
 import { useSlotStore } from '@/store/slotStore';
 import { useFlowStore } from '@/store/flowStore';
 import { getItemStats, getUpgradeCost } from './utils';
@@ -18,12 +18,11 @@ export function SlotCard({ slotType, item, isLocked, onClick }: SlotCardProps) {
     const { upgrade, setInventoryOpen } = useSlotStore();
     const { mineState } = useFlowStore();
 
-    const Icon = {
+    const IconComponent = {
         TRIGGER: Zap,
-        DAMAGE: Hammer,
-        GOLD: Coins,
-        UTILITY: Cpu
-    }[slotType];
+        BOOST: ArrowUpCircle,
+        OUTPUT: Coins
+    }[slotType] || Zap;
 
     const handleUpgrade = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -67,9 +66,10 @@ export function SlotCard({ slotType, item, isLocked, onClick }: SlotCardProps) {
 
     // Format Stat String
     let statDisplay = "";
-    if (stats.dps) statDisplay = `DPS: ${formatShort(stats.dps)}`;
-    if (stats.goldBonusPct) statDisplay = `Gold: +${stats.goldBonusPct}%`;
+    if (stats.dps) statDisplay = `Mod: +${formatShort(stats.dps)}`; // DPS Flat
+    if (stats.goldBonusPct) statDisplay = `Gold: +${stats.goldBonusPct}%`; // Gold Pct
     if (stats.intervalSec) statDisplay = `Int: ${stats.intervalSec.toFixed(1)}s`;
+    if (stats.dpsBoostPct) statDisplay = `Boost: +${stats.dpsBoostPct}%`; // Boost Pct
 
     return (
         <div
@@ -88,13 +88,12 @@ export function SlotCard({ slotType, item, isLocked, onClick }: SlotCardProps) {
                             item.rarity === 'rare' ? "bg-blue-500/20 text-blue-500" :
                                 "bg-gray-500/20 text-gray-400"
                 )}>
-                    <Icon className="w-6 h-6 fill-current" />
+                    <IconComponent className="w-6 h-6 fill-current" />
 
                     {/* Mission 22-D: n8n Badge */}
                     <div className="absolute -bottom-2 -right-6 scale-75 origin-left px-1.5 py-0.5 bg-[#FF6D5A] text-black text-[9px] font-bold rounded-full shadow-lg z-10 border border-white/20 whitespace-nowrap">
                         {slotType === 'TRIGGER' ? 'Webhook' :
-                            slotType === 'DAMAGE' ? 'Function' :
-                                slotType === 'GOLD' ? 'Set' : 'Switch'}
+                            slotType === 'BOOST' ? 'Function' : 'Switch'}
                     </div>
                 </div>
                 <div className="flex flex-col items-end">

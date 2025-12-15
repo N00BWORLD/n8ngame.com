@@ -3,7 +3,7 @@ import { CATALOG } from "./catalog";
 import { SlotType } from "./types";
 import { cn } from "@/lib/utils";
 import { useFlowStore } from "@/store/flowStore";
-import { Clock, Pickaxe, Coins, ShieldPlus, Repeat, X } from "lucide-react";
+import { Clock, Pickaxe, ShieldPlus, Repeat, X } from "lucide-react";
 import { computeLoadout } from "./utils";
 
 export function SlotMode() {
@@ -13,9 +13,8 @@ export function SlotMode() {
     // Fixed Slots Definition
     const SLOTS: { label: string, type: SlotType, icon: any }[] = [
         { label: 'TRIGGER', type: 'TRIGGER', icon: Clock },
-        { label: 'PROCESS 1', type: 'GOLD', icon: Coins }, // Mapped to GOLD
-        { label: 'PROCESS 2', type: 'UTILITY', icon: ShieldPlus }, // Mapped to UTILITY
-        { label: 'OUTPUT', type: 'DAMAGE', icon: Pickaxe },
+        { label: 'MODIFIER', type: 'BOOST', icon: ShieldPlus },
+        { label: 'OUTPUT', type: 'OUTPUT', icon: Pickaxe },
     ];
 
     // Compute stats for UI

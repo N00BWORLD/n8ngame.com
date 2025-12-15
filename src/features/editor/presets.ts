@@ -30,7 +30,7 @@ export const PRESETS: Preset[] = [
         id: 'split-miner',
         name: 'Split Miner',
         description: 'Double the output with parallel processing.',
-        pricePremium: 50,
+        pricePremium: 20,
         nodes: [
             { id: 'start', type: 'trigger', position: { x: 50, y: 150 }, data: { label: 'Start' } },
             { id: 'split', type: 'action', position: { x: 300, y: 150 }, data: { label: 'Split', actionType: 'split' } },
@@ -48,7 +48,7 @@ export const PRESETS: Preset[] = [
         id: 'boss-hunter',
         name: 'Boss Hunter',
         description: 'Optimized logic to target Boss rocks.',
-        pricePremium: 120,
+        pricePremium: 50,
         nodes: [
             { id: 'start', type: 'trigger', position: { x: 50, y: 200 }, data: { label: 'Start' } },
             { id: 'check', type: 'variable', position: { x: 300, y: 200 }, data: { label: 'Is Boss?', varType: 'condition' } },

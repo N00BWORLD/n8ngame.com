@@ -33,9 +33,8 @@ export const useSlotStore = create<SlotState>()(
             inventory: CATALOG,
             equipped: {
                 TRIGGER: null,
-                DAMAGE: null,
-                GOLD: null,
-                UTILITY: null,
+                BOOST: null,
+                OUTPUT: null,
             },
             ui: {
                 inventoryOpen: false,
@@ -123,7 +122,7 @@ export const useSlotStore = create<SlotState>()(
             }))
         }),
         {
-            name: 'n8ngame:slots:v1',
+            name: 'n8ngame:slots:v2',
         }
     )
 );
