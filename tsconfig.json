@@ -29,8 +29,7 @@
         }
     },
     "include": [
-        "src",
-        "api"
+        "src"
     ],
     "references": [
         {
