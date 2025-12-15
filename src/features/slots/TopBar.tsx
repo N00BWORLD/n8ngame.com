@@ -1,8 +1,9 @@
 import { Zap } from 'lucide-react';
 import { useFlowStore } from '@/store/flowStore';
-import { formatBigNum } from '@/lib/bigNum';
+import { toNumber } from '@/lib/bigNum';
 import { useSlotStore } from '@/store/slotStore';
 import { computeLoadout } from '@/features/slots/utils';
+import { formatShort } from '@/lib/format';
 
 export function TopBar() {
     const { mineState } = useFlowStore();
@@ -30,7 +31,7 @@ export function TopBar() {
             <div className="hidden sm:flex items-center gap-4 bg-white/5 rounded-full px-4 py-1 border border-white/5">
                 <div className="flex items-center gap-1">
                     <span className="text-[10px] text-red-400 font-bold">DPS</span>
-                    <span className="text-xs font-mono text-white">{dps}</span>
+                    <span className="text-xs font-mono text-white">{formatShort(dps)}</span>
                 </div>
                 <div className="w-px h-3 bg-white/20" />
                 <div className="flex items-center gap-1">
@@ -49,7 +50,7 @@ export function TopBar() {
                 <div className="flex flex-col items-end">
                     <div className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">Gold</div>
                     <div className="text-sm font-mono text-white leading-none">
-                        {formatBigNum(mineState.gold)}
+                        {formatShort(toNumber(mineState.gold))}
                     </div>
                 </div>
                 <div className="w-px h-6 bg-white/10" />

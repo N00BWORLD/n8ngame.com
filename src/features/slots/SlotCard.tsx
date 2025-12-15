@@ -1,106 +1,121 @@
-import { SlotType, SlotItem } from './types';
+import { SlotItem, SlotType } from './types';
 import { cn } from '@/lib/utils';
-import { Zap, Hammer, Coins, Cpu, Plus } from 'lucide-react';
+import { Lock, Plus, Zap, Hammer, Coins, Cpu, ArrowUpCircle } from 'lucide-react';
 import { useSlotStore } from '@/store/slotStore';
+import { useFlowStore } from '@/store/flowStore';
 import { getItemStats, getUpgradeCost } from './utils';
-
-// Constants
-const ICONS: Record<SlotType, any> = {
-    TRIGGER: Zap,
-    DAMAGE: Hammer,
-    GOLD: Coins,
-    UTILITY: Cpu
-};
-
-const COLORS: Record<SlotType, string> = {
-    TRIGGER: 'text-yellow-400 bg-yellow-400/10 border-yellow-500/20',
-    DAMAGE: 'text-red-400 bg-red-400/10 border-red-500/20',
-    GOLD: 'text-amber-400 bg-amber-400/10 border-amber-500/20',
-    UTILITY: 'text-cyan-400 bg-cyan-400/10 border-cyan-500/20'
-};
+import { formatShort } from '@/lib/format';
+import { toNumber } from '@/lib/bigNum';
 
 interface SlotCardProps {
-    type: SlotType;
+    slotType: SlotType;
     item?: SlotItem;
-    onRemove: () => void;
-    onInstallClick: () => void;
+    isLocked?: boolean;
+    onClick?: () => void;
 }
 
-export function SlotCard({ type, item, onRemove, onInstallClick }: SlotCardProps) {
-    const { upgrade } = useSlotStore();
-    const stats = item ? getItemStats(item) : {};
-    const cost = item ? getUpgradeCost(item) : 0;
+export function SlotCard({ slotType, item, isLocked, onClick }: SlotCardProps) {
+    const { upgrade, setInventoryOpen } = useSlotStore();
+    const { mineState } = useFlowStore();
 
-    // Mission 22-C Fix: Define constants
-    const Icon = ICONS[type];
-    const colorClass = COLORS[type];
+    const Icon = {
+        TRIGGER: Zap,
+        DAMAGE: Hammer,
+        GOLD: Coins,
+        UTILITY: Cpu
+    }[slotType];
 
-    // Helper to format stat string
-    const getStatString = () => {
-        if (!item) return '';
-        if (stats.dps) return `${stats.dps} DPS`;
-        if (stats.goldBonusPct) return `+${stats.goldBonusPct}% Gold`;
-        if (stats.intervalSec) return `${stats.intervalSec.toFixed(1)}s Interval`;
-        if (stats.intervalMs) return `${(stats.intervalMs / 1000).toFixed(1)}s Interval`;
-        return '';
+    const handleUpgrade = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (item) upgrade(slotType);
     };
 
+    const handleCardClick = () => {
+        if (!item) setInventoryOpen(true);
+        else onClick?.();
+    };
+
+    if (isLocked) {
+        return (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square opacity-50">
+                <Lock className="w-8 h-8 text-gray-500" />
+                <span className="text-xs text-gray-500 uppercase font-bold">Locked</span>
+            </div>
+        );
+    }
+
+    if (!item) {
+        return (
+            <button
+                onClick={() => setInventoryOpen(true)}
+                className="bg-white/5 border border-dashed border-white/20 rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square hover:bg-white/10 transition-all active:scale-95 group"
+            >
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
+                    <Plus className="w-6 h-6 text-gray-400 group-hover:text-cyan-400" />
+                </div>
+                <span className="text-xs text-gray-400 font-bold">Equip {slotType}</span>
+            </button>
+        );
+    }
+
+    const cost = getUpgradeCost(item);
+    // mineState.gold usually contains {m, e}. toNumber handles it.
+    // However, if formatted, we need raw value.
+    const currentGold = toNumber(mineState.gold);
+    const canAfford = currentGold >= cost;
+    const stats = getItemStats(item);
+
+    // Format Stat String
+    let statDisplay = "";
+    if (stats.dps) statDisplay = `DPS: ${formatShort(stats.dps)}`;
+    if (stats.goldBonusPct) statDisplay = `Gold: +${stats.goldBonusPct}%`;
+    if (stats.intervalSec) statDisplay = `Int: ${stats.intervalSec.toFixed(1)}s`;
+
     return (
-        <div className={cn(
-            "relative w-full aspect-[3/4] rounded-xl border-2 flex flex-col items-center justify-center transition-all",
-            item ? "bg-[#1a1a20] border-white/20" : `border-dashed ${colorClass} hover:bg-white/5 cursor-pointer`
-        )}
-            onClick={!item ? onInstallClick : undefined}
-        >
-            {/* Header / Icon */}
-            <div className="absolute top-4 left-4">
-                <Icon className={cn("w-6 h-6", item ? "text-gray-400" : "text-current")} />
-            </div>
-
-            {/* Label */}
-            <div className="absolute top-4 right-4 text-xs font-bold tracking-wider opacity-50">
-                {type}
-            </div>
-
-            {/* Content */}
-            {item ? (
-                <div className="flex flex-col items-center gap-2 p-4 text-center w-full">
-                    <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center mb-1">
-                        <Icon className="w-6 h-6 text-white" />
-                    </div>
-
-                    <div>
-                        <h3 className="text-md font-bold text-white leading-tight">{item.name}</h3>
-                        <div className="text-[10px] text-cyan-400 font-mono mb-1">Lv.{item.level}</div>
-                        <p className="text-xs text-gray-400">{item.description}</p>
-                        <div className="text-sm font-bold text-green-400 mt-1">{getStatString()}</div>
-                    </div>
-
-                    <div className="mt-auto flex flex-col gap-2 w-full px-2">
-                        {/* Upgrade Btn */}
-                        <button
-                            onClick={(e) => { e.stopPropagation(); upgrade(item.id); }}
-                            className="w-full px-3 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-200 text-xs font-bold rounded-lg border border-yellow-500/30 transition-colors flex items-center justify-center gap-1"
-                        >
-                            <Coins className="w-3 h-3" />
-                            {cost.toLocaleString()}
-                        </button>
-
-                        {/* Remove Btn */}
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onRemove(); }}
-                            className="w-full px-3 py-1 bg-red-500/10 hover:bg-red-500/30 text-red-400 text-[10px] rounded-lg transition-colors"
-                        >
-                            Remove
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <div className="flex flex-col items-center gap-2">
-                    <Plus className="w-8 h-8 opacity-50" />
-                    <span className="text-sm font-bold">Install</span>
-                </div>
+        <div
+            onClick={handleCardClick}
+            className={cn(
+                "relative bg-gray-900 border border-white/10 rounded-xl p-3 flex flex-col gap-3 transition-all",
+                "hover:border-white/20"
             )}
+        >
+            {/* Header: Icon & Level */}
+            <div className="flex items-start justify-between">
+                <div className={cn(
+                    "w-10 h-10 rounded-lg flex items-center justify-center",
+                    item.rarity === 'legendary' ? "bg-yellow-500/20 text-yellow-500" :
+                        item.rarity === 'epic' ? "bg-purple-500/20 text-purple-500" :
+                            item.rarity === 'rare' ? "bg-blue-500/20 text-blue-500" :
+                                "bg-gray-500/20 text-gray-400"
+                )}>
+                    <Icon className="w-6 h-6 fill-current" />
+                </div>
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">{item.rarity}</span>
+                    <span className="text-xs font-mono text-cyan-400">Lv.{item.level}</span>
+                </div>
+            </div>
+
+            {/* Title & Stat */}
+            <div>
+                <div className="text-sm font-bold text-white leading-tight mb-1">{item.name}</div>
+                <div className="text-xs text-gray-300 font-mono">{statDisplay}</div>
+            </div>
+
+            {/* Upgrade Button */}
+            <button
+                onClick={handleUpgrade}
+                disabled={!canAfford}
+                className={cn(
+                    "mt-auto w-full h-[40px] flex items-center justify-center gap-1.5 rounded-lg font-bold text-xs transition-all active:scale-95",
+                    canAfford
+                        ? "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20"
+                        : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-75"
+                )}
+            >
+                <ArrowUpCircle className="w-3.5 h-3.5" />
+                <span>{formatShort(cost)}</span>
+            </button>
         </div>
     );
 }

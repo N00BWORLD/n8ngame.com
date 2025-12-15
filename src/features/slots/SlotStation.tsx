@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { X, Menu } from 'lucide-react';
 
 export function SlotStation() {
-    const { unequip, equip, getEquippedItem } = useSlotStore();
+    const { equip, getEquippedItem } = useSlotStore();
     const [isInventoryOpen, setInventoryOpen] = useState(false);
     const [targetSlot, setTargetSlot] = useState<SlotType | null>(null);
 
@@ -20,7 +20,7 @@ export function SlotStation() {
 
     const handleEquip = (itemId: string) => {
         equip(itemId);
-        setInventoryOpen(false); // Close drawer after equip? Or keep open?
+        setInventoryOpen(false);
     };
 
     return (
@@ -32,10 +32,10 @@ export function SlotStation() {
                     {SLOTS.map(type => (
                         <SlotCard
                             key={type}
-                            type={type}
+                            slotType={type}
                             item={getEquippedItem(type)}
-                            onRemove={() => unequip(type)}
-                            onInstallClick={() => handleInstallClick(type)}
+                            isLocked={false}
+                            onClick={() => handleInstallClick(type)}
                         />
                     ))}
                 </div>

@@ -80,6 +80,11 @@ export function cmp(a: BigNum, b: BigNum): number {
     return 0;
 }
 
+export function toNumber(val: BigNum | number): number {
+    if (typeof val === 'number') return val;
+    return val.m * Math.pow(10, val.e);
+}
+
 // 0-11: fixed suffixes
 const SUFFIXES = ["", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"];
 

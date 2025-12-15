@@ -18,7 +18,7 @@ interface SlotState {
     equip: (itemId: string) => void;
     unequip: (slotType: SlotType) => void;
     unlock: (itemId: string) => void;
-    upgrade: (itemId: string) => void;
+    upgrade: (slotType: SlotType) => void; // Changed signature to (slotType: SlotType)
     getEquippedItem: (slotType: SlotType) => SlotItem | undefined;
 
     // UI Actions
@@ -71,8 +71,14 @@ export const useSlotStore = create<SlotState>()(
                 }));
             },
 
-            upgrade: (itemId) => {
-                const { inventory } = get();
+            upgrade: (slotType) => { // Changed signature to (slotType: SlotType)
+                const { inventory, equipped } = get();
+                const itemId = equipped[slotType];
+                if (!itemId) {
+                    console.warn(`No item equipped in slot: ${slotType}`);
+                    return;
+                }
+
                 const itemIndex = inventory.findIndex(i => i.id === itemId);
                 if (itemIndex === -1) return;
 

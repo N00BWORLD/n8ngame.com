@@ -8,9 +8,20 @@ export interface LoadoutStats {
 
 /**
  * Calculate upgrade cost: ceil(baseCost * 1.45^level)
+ * Defaults: Trigger 50, Damage 60, Gold 55, Utility 80
  */
 export function getUpgradeCost(item: SlotItem): number {
-    return Math.ceil(item.baseCost * Math.pow(1.45, item.level));
+    let baseCost = item.baseCost;
+    if (!baseCost) {
+        switch (item.slotType) {
+            case 'TRIGGER': baseCost = 50; break;
+            case 'DAMAGE': baseCost = 60; break;
+            case 'GOLD': baseCost = 55; break;
+            case 'UTILITY': baseCost = 80; break;
+            default: baseCost = 50;
+        }
+    }
+    return Math.ceil(baseCost * Math.pow(1.45, item.level));
 }
 
 /**
@@ -19,36 +30,32 @@ export function getUpgradeCost(item: SlotItem): number {
 export function getItemStats(item: SlotItem) {
     const level = item.level;
 
-    // Default values if undefined
+    // Base Value from Item or reasonable defaults if missing
+    // Note: catalog.ts should have these baseValues.
     const baseVal = item.baseValue || 0;
-    const baseInt = item.baseInterval || 10000;
 
     switch (item.slotType) {
         case 'TRIGGER':
             // "intervalSec = max(60, baseInterval - level*30)"
-            // baseInterval is 600 (= 6.0s). 
-            // Level 1: 600 - 30 = 570 (5.7s)
-            // Level 10: 600 - 300 = 300 (3.0s)
-            // Min 60 (= 0.6s)
-
-            const rawVal = Math.max(60, baseInt - (level * 30));
-
-            return {
-                intervalMs: rawVal * 10, // 600 -> 6000ms
-                intervalSec: rawVal / 100 // 600 -> 6.0s
-            };
+            // baseValue here is assumed to be the Interval in Seconds (e.g. 600) based on Spec 22-B.
+            // If item.baseValue is 600.
+            const baseInterval = baseVal || 600;
+            const intervalSec = Math.max(60, baseInterval - (level * 30));
+            return { intervalSec };
 
         case 'DAMAGE':
             // "value = baseValue * 1.20^level"
-            return {
-                dps: Math.floor(baseVal * Math.pow(1.20, level))
-            };
+            const dps = Math.floor((baseVal || 1) * Math.pow(1.20, level));
+            return { dps };
 
         case 'GOLD':
             // "value = baseValue + (level * 5)"
-            return {
-                goldBonusPct: baseVal + (level * 5)
-            };
+            const goldBonusPct = baseVal + (level * 5);
+            return { goldBonusPct };
+
+        case 'UTILITY':
+            // No value change for now
+            return {};
 
         default:
             return {};
@@ -59,32 +66,44 @@ export function getItemStats(item: SlotItem) {
  * Compute total loadout stats from equipped items.
  */
 export function computeLoadout(equippedItems: (SlotItem | undefined)[]): LoadoutStats {
-    let dps = 0; // Base DPS starts at 0 for slots (additive)
+    let dps = 0; // Base DPS starts at 0 for slots (additive to Node DPS? No, spec says "Basic 1")
+    // Wait, computeLoadout logic:
+    // If we have damage item, use its dps. If not, default is 1.
+    // If we have multiple damage items (unlikely with slots), sum them.
+
     let goldBonusPct = 0;
-    let intervalMs = 600000; // Base 600s (10 min) if no timer
+    let intervalSec = 600; // Base default 600s
+
+    let hasTrigger = false;
+    let hasDamage = false;
 
     equippedItems.forEach(item => {
         if (!item) return;
         const stats = getItemStats(item);
 
-        if (stats.dps) dps += stats.dps;
-        if (stats.goldBonusPct) goldBonusPct += stats.goldBonusPct;
-        if (stats.intervalMs) intervalMs = stats.intervalMs;
+        if (stats.dps !== undefined) {
+            dps += stats.dps;
+            hasDamage = true;
+        }
+        if (stats.goldBonusPct !== undefined) {
+            goldBonusPct += stats.goldBonusPct;
+        }
+        if (stats.intervalSec !== undefined) {
+            // If multiple triggers, take min? or max? or last?
+            // "Slots" implies 1 per type usually.
+            // Let's assume replacement.
+            intervalSec = stats.intervalSec;
+            hasTrigger = true;
+        }
     });
 
     // Defaults per Spec 22-B
-    // "장착 없으면 dps 기본 1"
-    const finalDps = dps > 0 ? dps : 1;
-
-    // "장착 없으면 intervalSec 기본 600"
-    // intervalMs was initialized to 600000 (600s * 1000)
-    // Wait, initial logic: let intervalMs = 600000;
-    // But let's check the loop above.
-    // If no trigger equipped, intervalMs remains default.
+    if (!hasDamage && dps === 0) dps = 1;
+    if (!hasTrigger) intervalSec = 600;
 
     return {
-        dps: finalDps,
+        dps,
         goldBonusPct,
-        intervalSec: intervalMs / 1000
+        intervalSec
     };
 }

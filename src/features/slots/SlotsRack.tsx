@@ -3,7 +3,7 @@ import { SlotCard } from './SlotCard';
 import { SlotType } from './types';
 
 export function SlotsRack() {
-    const { getEquippedItem, unequip, setInventoryOpen } = useSlotStore();
+    const { getEquippedItem } = useSlotStore();
 
     // Ordered Slots
     const SLOT_ORDER: SlotType[] = ['TRIGGER', 'DAMAGE', 'GOLD', 'UTILITY'];
@@ -16,10 +16,8 @@ export function SlotsRack() {
                     return (
                         <SlotCard
                             key={type}
-                            type={type}
+                            slotType={type}
                             item={item || undefined} // Force undefined if null
-                            onRemove={() => unequip(type)}
-                            onInstallClick={() => setInventoryOpen(true)}
                         />
                     );
                 })}
