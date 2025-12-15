@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import { ReactFlow, Background, Controls, NodeTypes, ReactFlowProvider, useReactFlow, OnSelectionChangeParams } from '@xyflow/react';
+import { useEffect, useState } from 'react';
+import { ReactFlow, Background, Controls, NodeTypes, ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { TriggerNode } from '@/features/editor/nodes/TriggerNode';
 import { ActionNode } from '@/features/editor/nodes/ActionNode';
@@ -16,10 +16,13 @@ import { TopLeftControls } from '@/components/TopLeftControls';
 import { ResultCard } from '@/components/ResultCard';
 import { ShopModal } from '@/features/economy/ShopModal';
 import { BlueprintsModal } from '@/features/storage/BlueprintsModal';
-import { Trash2 } from 'lucide-react';
 import { SlotsScreen } from '@/features/slots/SlotsScreen';
 import { MiningHUD } from '@/features/mining/MiningHUD';
 import { MineLogsPanel } from '@/features/mining/MineLogsPanel';
+import { ShopPanel } from '@/features/shop/ShopPanel';
+import { SlotMode } from '@/features/slots/SlotMode';
+import { RockPanel } from '@/features/mining/RockPanel'; // Mission 25-E
+import { LayoutGrid, Network } from 'lucide-react';
 
 const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
@@ -32,29 +35,50 @@ const nodeTypes: NodeTypes = {
 
 function Flow() {
     const {
-        nodes, edges, onNodesChange, onEdgesChange, onConnect, onPaneClick, addNode
+        nodes, edges, onNodesChange, onEdgesChange, onConnect, onPaneClick, addNode,
+        editorMode, setEditorMode // Mission 25-C
     } = useFlowStore();
-    const { screenToFlowPosition, deleteElements } = useReactFlow();
+    const { screenToFlowPosition } = useReactFlow();
 
-    const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
-    const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
-    const showEditor = import.meta.env.VITE_SHOW_EDITOR === 'true';
     const [viewMode, setViewMode] = useState<'GRAPH' | 'STATION'>('STATION');
-
-    const onSelectionChange = useCallback(({ nodes, edges }: OnSelectionChangeParams) => {
-        setSelectedNodes(nodes.map((n) => n.id));
-        setSelectedEdges(edges.map((e) => e.id));
-    }, []);
-
-    const handleDeleteSelected = () => {
-        deleteElements({
-            nodes: selectedNodes.map(id => ({ id })),
-            edges: selectedEdges.map(id => ({ id }))
-        });
-    };
 
     useEffect(() => {
         initUiSettings();
+
+        // Mission 25-D: Offline Progress Check
+        useFlowStore.getState().processOfflineProgress();
+        const startInterval = setInterval(() => {
+            useFlowStore.getState().refreshLastSeen();
+        }, 30000); // Checkpoint every 30s
+
+        const handleVisibilityValues = () => {
+            if (document.visibilityState === 'hidden') {
+                useFlowStore.getState().refreshLastSeen();
+            } else {
+                // On resume, we could check offline again if gap was huge, 
+                // but typically reload triggers process. 
+                // Simple resume logic: just refresh last seen to avoid "offline" calc for active bg tab time effectively?
+                // Or do we WANT bg tab to count?
+                // Spec: "visibilitychange -> hidden일 때 lastSeenMs 저장".
+                // If we close tab, it saves.
+                // If we switch tab, it saves.
+                // If we return 5 hours later (tab was suspended), we might want to claim.
+                // If tab was alive, it might have auto-run?
+                // Let's stick to simple: check on mount.
+                // If user wants offline gains, they reload.
+                // Or we can manually trigger process if gap > X?
+                useFlowStore.getState().processOfflineProgress();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityValues);
+        window.addEventListener('beforeunload', () => useFlowStore.getState().refreshLastSeen());
+
+        return () => {
+            clearInterval(startInterval);
+            document.removeEventListener('visibilitychange', handleVisibilityValues);
+            window.removeEventListener('beforeunload', () => useFlowStore.getState().refreshLastSeen());
+        }
     }, []);
 
     const onDragOver = (event: React.DragEvent) => {
@@ -101,14 +125,13 @@ function Flow() {
                 <MiningHUD />
                 <MineLogsPanel />
 
-                {showEditor && (
-                    <button
-                        onClick={() => setViewMode('GRAPH')}
-                        className="fixed bottom-32 right-4 z-[60] bg-black/50 text-white text-xs px-2 py-1 rounded border border-white/20"
-                    >
-                        Dev: Graph
-                    </button>
-                )}
+                {/* Mode Switcher also available in Station? Maybe distinct? keeping simple */}
+                <button
+                    onClick={() => setViewMode('GRAPH')}
+                    className="fixed bottom-32 right-4 z-[60] bg-black/50 text-white text-xs px-2 py-1 rounded border border-white/20"
+                >
+                    Dev: Graph
+                </button>
             </div>
         );
     }
@@ -120,12 +143,32 @@ function Flow() {
                 <div className="flex items-center gap-4">
                     <TopLeftControls />
 
+                    {/* Mission 25-C: Mode Toggle */}
                     <div className="flex bg-black/40 rounded-lg p-1 border border-white/10">
                         <button
-                            disabled
-                            className="px-3 py-1 rounded text-xs font-bold transition-all bg-cyan-600 text-white shadow cursor-default"
+                            onClick={() => setEditorMode('SLOT')}
+                            className={`px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1 ${editorMode === 'SLOT' ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                                }`}
                         >
+                            <LayoutGrid className="w-3 h-3" />
+                            Slot
+                        </button>
+                        <button
+                            onClick={() => setEditorMode('GRAPH')}
+                            className={`px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1 ${editorMode === 'GRAPH' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                                }`}
+                        >
+                            <Network className="w-3 h-3" />
                             Graph
+                        </button>
+                    </div>
+
+                    <div className="flex bg-black/40 rounded-lg p-1 border border-white/10 ml-2">
+                        <button
+                            disabled
+                            className="px-3 py-1 rounded text-xs font-bold transition-all bg-gray-800 text-white/50 shadow cursor-default"
+                        >
+                            Dev
                         </button>
                         <button
                             onClick={() => setViewMode('STATION')}
@@ -141,46 +184,45 @@ function Flow() {
 
             {/* 2. Main Content Body */}
             <div className="flex-1 relative pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]" onDragOver={onDragOver} onDrop={onDrop}>
-                <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    nodeTypes={nodeTypes}
-                    onPaneClick={onPaneClick}
-                    onSelectionChange={onSelectionChange}
-                    deleteKeyCode={['Backspace', 'Delete']}
-                    proOptions={{ hideAttribution: true }}
-                    colorMode="dark"
-                    fitView
-                >
-                    <Background color="#111" gap={16} />
-                    <Controls position="bottom-right" className="bg-gray-800/80 border-gray-700 text-white fill-white mb-24 mr-2 sm:mb-2 sm:mr-2" />
+                {/* Adsense Slot (Desktop Only) - Right Side */}
+                <div id="ad-slot-side" className="hidden md:block absolute top-[60px] right-2 w-[160px] h-[600px] pointer-events-none z-0 border border-white/5 bg-white/5 border-dashed rounded-lg opacity-20 hover:opacity-100 transition-opacity">
+                    <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase -rotate-90">Ad Space</div>
+                </div>
 
-                    <NodePalette />
-                    <StorageControls />
-                    <InventoryModal />
-                    <MissionPanel />
-                    <ResultCard />
-                    <HelpModal />
-                    <ShopModal />
-                    <BlueprintsModal />
+                {editorMode === 'SLOT' ? (
+                    <SlotMode />
+                ) : (
+                    <ReactFlow
+                        nodes={nodes}
+                        edges={edges}
+                        onNodesChange={onNodesChange}
+                        onEdgesChange={onEdgesChange}
+                        onConnect={onConnect}
+                        nodeTypes={nodeTypes}
+                        onPaneClick={onPaneClick}
+                        deleteKeyCode={['Backspace', 'Delete']}
+                        proOptions={{ hideAttribution: true }}
+                        colorMode="dark"
+                        fitView
+                    >
+                        <Background color="#111" gap={16} />
 
-                    {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
-                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-200">
-                            <button
-                                onClick={handleDeleteSelected}
-                                className="flex items-center gap-2 px-6 py-3 bg-red-500/90 text-white rounded-full shadow-lg border border-red-400/50 backdrop-blur-md hover:bg-red-600 hover:scale-105 active:scale-95 transition-all font-bold tracking-wide"
-                            >
-                                <Trash2 className="h-5 w-5 fill-current" />
-                                <span>Delete ({selectedNodes.length + selectedEdges.length})</span>
-                            </button>
-                        </div>
-                    )}
-                </ReactFlow>
+                        {/* Controls moved to top-right to avoid bottom log panel overlap */}
+                        <Controls position="top-right" className="bg-gray-800/80 border-gray-700 text-white fill-white mt-14 mr-2" />
 
-                <MiningHUD />
+                        <NodePalette />
+                        <StorageControls />
+                        <InventoryModal />
+                        <MissionPanel />
+                        <ResultCard />
+                        <HelpModal />
+                        <ShopModal />
+                        <BlueprintsModal />
+                    </ReactFlow>
+                )}
+
+                <RockPanel /> {/* Mission 25-E: Rock Visuals */}
+                <ShopPanel />
                 <MineLogsPanel />
             </div>
         </div >

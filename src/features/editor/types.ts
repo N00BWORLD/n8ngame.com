@@ -1,19 +1,9 @@
 import { Node } from '@xyflow/react';
 
+// Update NodeData to be a union or intersection that allows specific properties
 export type NodeData = {
     label: string;
-};
-
-export type TriggerNodeData = NodeData & {
-    interval?: number;
-};
-
-export type ActionNodeData = NodeData & {
-    actionType?: string;
-};
-
-export type VariableNodeData = NodeData & {
-    value?: unknown;
+    [key: string]: any; // Allow loose typing for now to avoid comprehensive refactor
 };
 
 export type AppNode = Node<NodeData, 'trigger' | 'action' | 'variable' | 'generator' | 'booster' | 'sink'>;

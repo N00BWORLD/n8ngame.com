@@ -1,68 +1,68 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useFlowStore } from '@/store/flowStore';
 
-const AUTORUN_KEY = 'n8ngame:autorun:v1';
-const CYCLE_SEC = 600; // 10 minutes
+const AUTORUN_KEY = 'n8ngame:autorun:enabled';
+const CYCLE_SECONDS = 600;
 
 export function useAutoRun() {
-    const { runMine } = useFlowStore();
+    const { runMine } = useFlowStore(); // n8nStatus is checked via getState() to avoid stale closures in interval
 
-    // Persist Toggle State
-    const [isAutoRun, setIsAutoRunState] = useState(() => {
-        return localStorage.getItem(AUTORUN_KEY) === 'true';
+    // Persistent Toggle State: '1' = ON, '0' = OFF
+    const [enabled, setEnabled] = useState(() => {
+        return localStorage.getItem(AUTORUN_KEY) === '1';
     });
 
-    // Timer State
-    const [timeLeft, setTimeLeft] = useState(CYCLE_SEC);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    // Countdown State
+    const [secondsLeft, setSecondsLeft] = useState(CYCLE_SECONDS);
+    const timerRef = useRef<number | null>(null);
 
-    // Persist changes
+    // Save persistence
     useEffect(() => {
-        localStorage.setItem(AUTORUN_KEY, String(isAutoRun));
-    }, [isAutoRun]);
+        localStorage.setItem(AUTORUN_KEY, enabled ? '1' : '0');
+    }, [enabled]);
 
-    // Timer Logic
+    // Timer Loop
     useEffect(() => {
-        if (!isAutoRun) {
-            setTimeLeft(CYCLE_SEC); // Reset on disable
-            if (timerRef.current) clearInterval(timerRef.current);
+        if (!enabled) {
+            setSecondsLeft(CYCLE_SECONDS);
+            if (timerRef.current) window.clearInterval(timerRef.current);
             return;
         }
 
-        timerRef.current = setInterval(() => {
-            setTimeLeft((prev) => {
+        // Start Interval
+        timerRef.current = window.setInterval(() => {
+            setSecondsLeft((prev) => {
                 if (prev <= 1) {
-                    // Trigger Mine
-                    // Check if already running to prevent overlap
-                    const currentStatus = useFlowStore.getState().n8nStatus;
-                    if (currentStatus !== 'running') {
+                    // Ready to trigger
+                    const store = useFlowStore.getState();
+                    // Prevent duplicate if already running
+                    if (store.n8nStatus !== 'running') {
                         runMine(0);
                     }
-                    return CYCLE_SEC; // Reset Timer
+                    // Reset to 600s regardless of trigger success (keep rhythm)
+                    return CYCLE_SECONDS;
                 }
                 return prev - 1;
             });
         }, 1000);
 
         return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
+            if (timerRef.current) window.clearInterval(timerRef.current);
         };
-    }, [isAutoRun, runMine]);
+    }, [enabled, runMine]);
 
-    const toggleAutoRun = () => {
-        setIsAutoRunState((prev) => !prev);
-    };
+    // Manual Toggle
+    const toggle = () => setEnabled(prev => !prev);
 
-    const resetCountdown = () => {
-        if (isAutoRun) {
-            setTimeLeft(CYCLE_SEC);
-        }
-    };
+    // Manual Timer Reset (called when user manually Mines)
+    const resetTimer = useCallback(() => {
+        setSecondsLeft(CYCLE_SECONDS);
+    }, []);
 
     return {
-        isAutoRun,
-        toggleAutoRun,
-        timeLeft,
-        resetCountdown
+        enabled,
+        toggle,
+        secondsLeft,
+        resetTimer
     };
 }

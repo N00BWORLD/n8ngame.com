@@ -1,17 +1,19 @@
 
-import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle, Repeat, ShoppingCart, SquareTerminal, BookTemplate } from 'lucide-react';
+import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle, Repeat, ShoppingCart, SquareTerminal, BookTemplate, Trash2 } from 'lucide-react';
 import { useFlowStore } from '@/store/flowStore';
 import { useSlotStore } from '@/store/slotStore';
 import { computeLoadout } from '@/features/slots/utils';
 import { useState, useEffect } from 'react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
-import { PresetModal } from '@/features/editor/PresetModal';
+import { PresetSelector } from '@/features/editor/PresetSelector';
 import { useUiStore } from '@/store/uiStore';
+import { useReactFlow } from '@xyflow/react';
 
 import { formatBigNum } from '@/lib/bigNum';
 
 export function RunToolbar() {
-    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen, credits, isMiningAuto, toggleMiningAuto, setShopOpen, upgrades, isTerminalOpen, setTerminalOpen, setPresetOpen, runMine } = useFlowStore();
+    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen, credits, isMiningAuto, toggleMiningAuto, setShopOpen, upgrades, isTerminalOpen, setTerminalOpen, setPresetOpen, runMine, nodes, edges } = useFlowStore();
+    const { deleteElements } = useReactFlow();
 
     const { t } = useUiStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -178,6 +180,24 @@ export function RunToolbar() {
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 max-w-full overflow-visible">
             {/* Status Indicator & Reset */}
             <div className="flex items-center gap-2 flex-shrink-0 order-1">
+                {/* Mission 25-B: Delete Selected Button */}
+                {(nodes.some(n => n.selected) || edges.some(e => e.selected)) && (
+                    <button
+                        onClick={() => {
+                            const selectedNodes = nodes.filter(n => n.selected);
+                            const selectedEdges = edges.filter(e => e.selected);
+                            if (window.confirm(`Delete ${selectedNodes.length} nodes and ${selectedEdges.length} edges?`)) {
+                                deleteElements({ nodes: selectedNodes, edges: selectedEdges });
+                            }
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded hover:bg-red-500 hover:text-white transition-all mr-2 animate-in fade-in"
+                        title="Delete Selected"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="text-xs font-bold hidden sm:inline">Delete</span>
+                    </button>
+                )}
+
                 <div className="flex items-center gap-2 text-xs" title={statusText}>
                     <span className={`h-2 w-2 rounded-full ${(isRunning || isN8NRunning) ? 'bg-yellow-400 animate-pulse' : (serverHealthy ? 'bg-green-500' : 'bg-red-500')}`} />
                     <span className="text-gray-400 hidden lg:inline">{statusText} {(!serverHealthy && !isRunning && !isN8NRunning) ? '(Offline)' : ''}</span>
@@ -230,9 +250,10 @@ export function RunToolbar() {
                     </div>
                 </div>
 
+                {/* Mission 13: Credits & Gas HUD - OMITTED for brevity if unchanged, but keeping for completeness */}
+                {/* ... (reused from view_file output in Step 1588) */}
                 <div className="h-6 w-px bg-white/10 mx-1" />
 
-                {/* Mission 13: Credits & Gas HUD */}
                 <div className="flex items-center gap-3 px-3 py-1 bg-black/50 rounded-lg border border-white/10 backdrop-blur-md">
                     <div className="flex items-center gap-1.5" title="Execution Budget (Variable)">
                         <Zap className="h-3 w-3 text-cyan-400 fill-cyan-400/50" />
@@ -242,7 +263,6 @@ export function RunToolbar() {
                     </div>
                     <div className="h-4 w-px bg-white/20" />
 
-                    {/* Mission 15-A: Node Count Display */}
                     <div className="flex items-center gap-1.5" title="Node Usage">
                         <Cpu className="h-3 w-3 text-purple-400" />
                         <span className="text-xs font-mono text-purple-100">
@@ -256,7 +276,6 @@ export function RunToolbar() {
                         <span className="text-lg font-mono font-bold text-white is-neon tracking-wide">{formatBigNum(credits)}</span>
                     </div>
 
-                    {/* Shop Button */}
                     <button
                         onClick={() => setShopOpen(true)}
                         className="ml-2 rounded p-1 text-yellow-500 hover:bg-yellow-500/20 hover:scale-110 transition-all border border-yellow-500/30"
@@ -281,7 +300,6 @@ export function RunToolbar() {
                     <span className="hidden sm:inline">{isRunning ? t('ui.status.running') : t('btn.run')}</span>
                 </button>
 
-                {/* Mission 13: Auto Run Toggle */}
                 <button
                     onClick={toggleMiningAuto}
                     disabled={isRunning && !isMiningAuto}
@@ -303,7 +321,6 @@ export function RunToolbar() {
                     </span>
                 </button>
 
-                {/* Mission 11-C: Run via n8n */}
                 <button
                     onClick={handleRunN8N}
                     disabled={isRunning || isN8NRunning || !serverHealthy}
@@ -320,18 +337,17 @@ export function RunToolbar() {
 
                 <div className="h-6 w-px bg-white/10 mx-1" />
 
-                {/* Mission 21-B: Presets */}
+                {/* Mission 25-A: Presets Selector */}
                 <button
                     onClick={() => setPresetOpen(true)}
                     className="rounded p-2 text-cyan-400 hover:bg-white/10 hover:text-white transition-colors"
-                    title="Node Presets"
+                    title="Blueprints"
                 >
                     <BookTemplate className="h-4 w-4" />
                 </button>
 
                 <div className="h-6 w-px bg-white/10 mx-1" />
 
-                {/* Mission 11-E: Inventory */}
                 <button
                     onClick={() => setInventoryOpen(true)}
                     className="rounded p-2 text-purple-400 hover:bg-white/10 hover:text-white transition-colors"
@@ -340,7 +356,6 @@ export function RunToolbar() {
                     <Package className="h-4 w-4" />
                 </button>
 
-                {/* Mission 11-F: Missions */}
                 <div className="relative group">
                     <button
                         onClick={() => { if (serverHealthy) setMissionOpen(true) }}
@@ -352,7 +367,6 @@ export function RunToolbar() {
                     </button>
                 </div>
 
-                {/* Mission 11-H: Help */}
                 <button
                     onClick={() => setHelpOpen(true)}
                     className="rounded p-2 text-blue-400 hover:bg-white/10 hover:text-white transition-colors"
@@ -361,7 +375,6 @@ export function RunToolbar() {
                     <HelpCircle className="h-4 w-4" />
                 </button>
 
-                {/* Mission 20-M: Terminal Toggle */}
                 <button
                     onClick={() => setTerminalOpen(!isTerminalOpen)}
                     className={`rounded p-2 transition-colors ${isTerminalOpen ? 'text-green-400 bg-white/10' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
@@ -380,7 +393,7 @@ export function RunToolbar() {
             </div>
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-            <PresetModal />
+            <PresetSelector isOpen={useFlowStore.getState().isPresetOpen} onClose={() => useFlowStore.getState().setPresetOpen(false)} />
         </div>
     );
 }

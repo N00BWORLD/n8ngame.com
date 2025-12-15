@@ -54,8 +54,9 @@ export function getItemStats(item: SlotItem) {
             return { goldBonusPct };
 
         case 'UTILITY':
-            // No value change for now
-            return {};
+            // Spec 25-C: Utility as DPS Boost (+%)
+            const dpsBoostPct = baseVal + (level * 2); // Base + 2% per level?
+            return { dpsBoostPct };
 
         default:
             return {};
@@ -66,13 +67,10 @@ export function getItemStats(item: SlotItem) {
  * Compute total loadout stats from equipped items.
  */
 export function computeLoadout(equippedItems: (SlotItem | undefined)[]): LoadoutStats {
-    let dps = 0; // Base DPS starts at 0 for slots (additive to Node DPS? No, spec says "Basic 1")
-    // Wait, computeLoadout logic:
-    // If we have damage item, use its dps. If not, default is 1.
-    // If we have multiple damage items (unlikely with slots), sum them.
-
+    let dps = 0;
     let goldBonusPct = 0;
     let intervalSec = 600; // Base default 600s
+    let dpsMultiplier = 1; // Base multiplier
 
     let hasTrigger = false;
     let hasDamage = false;
@@ -88,14 +86,31 @@ export function computeLoadout(equippedItems: (SlotItem | undefined)[]): Loadout
         if (stats.goldBonusPct !== undefined) {
             goldBonusPct += stats.goldBonusPct;
         }
+        if (stats.dpsBoostPct !== undefined) {
+            dpsMultiplier += (stats.dpsBoostPct / 100);
+        }
         if (stats.intervalSec !== undefined) {
-            // If multiple triggers, take min? or max? or last?
-            // "Slots" implies 1 per type usually.
-            // Let's assume replacement.
-            intervalSec = stats.intervalSec;
-            hasTrigger = true;
+            // "Manual Run" might return 0
+            if (stats.intervalSec > 0) {
+                intervalSec = stats.intervalSec;
+                hasTrigger = true;
+            } else {
+                // Manual only (interval 0 or very high?)
+                // If 0, we might strictly disable auto-run in useAutoRun.
+                // For now, let's keep 600 but rely on another flag, OR set specific value.
+                // If interval is 0, let's treat as Manual (very long interval)
+                intervalSec = 999999;
+                hasTrigger = true;
+            }
         }
     });
+
+    // Defaults per Spec
+    if (!hasDamage && dps === 0) dps = 1;
+    // Apply Multiplier
+    dps = Math.floor(dps * dpsMultiplier);
+
+    if (!hasTrigger) intervalSec = 600;
 
     // Defaults per Spec 22-B
     if (!hasDamage && dps === 0) dps = 1;

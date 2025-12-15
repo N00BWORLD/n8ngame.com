@@ -1,10 +1,12 @@
 import { useFlowStore } from '@/store/flowStore';
 import { X, Trophy, Star, Activity } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export function ResultCard() {
     const { isResultOpen, setResultOpen, lastExecutionResult } = useFlowStore();
     const [animateScore, setAnimateScore] = useState(0);
+
+    const frameId = useRef<number>();
 
     useEffect(() => {
         if (isResultOpen && lastExecutionResult?.score) {
@@ -22,11 +24,15 @@ export function ResultCard() {
                 setAnimateScore(Math.floor(start + (end - start) * ease));
 
                 if (progress < 1) {
-                    requestAnimationFrame(animate);
+                    frameId.current = requestAnimationFrame(animate);
                 }
             };
-            requestAnimationFrame(animate);
+            frameId.current = requestAnimationFrame(animate);
         }
+
+        return () => {
+            if (frameId.current) cancelAnimationFrame(frameId.current);
+        };
     }, [isResultOpen, lastExecutionResult]);
 
     if (!isResultOpen || !lastExecutionResult) return null;
@@ -42,7 +48,7 @@ export function ResultCard() {
     });
 
     // Just Completed Missions
-    const justCompletedMissions = (missions || []).filter((m: any) => m.justCompleted);
+    const justCompletedMissions = (missions || []).filter((m: { justCompleted: boolean }) => m.justCompleted);
 
     const rankColor = rank === 'S' ? 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]' :
         rank === 'A' ? 'text-purple-400' :
@@ -102,7 +108,7 @@ export function ResultCard() {
                                 <Trophy className="h-4 w-4" /> Mission Complete!
                             </div>
                             <div className="space-y-2">
-                                {justCompletedMissions.map((m: any) => (
+                                {justCompletedMissions.map((m: { id: number, title: string }) => (
                                     <div key={m.id} className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 p-2 rounded text-yellow-200 text-sm">
                                         <Activity className="h-4 w-4" />
                                         {m.title}
