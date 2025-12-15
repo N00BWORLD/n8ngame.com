@@ -15,6 +15,7 @@ import { HelpModal } from '@/features/help/HelpModal';
 import { initUiSettings } from '@/store/uiStore';
 import { TopLeftControls } from '@/components/TopLeftControls';
 import { ResultCard } from '@/components/ResultCard';
+import { ShopModal } from '@/features/economy/ShopModal';
 
 const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
@@ -63,6 +64,75 @@ function Flow() {
         addNode(newNode as any);
     };
 
+    // Mission 13-EDIT-CORE-1: Keyboard Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            // Input Guard: Don't trigger if typing in an input or textarea
+            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+
+            // Undo/Redo
+            if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+                event.preventDefault();
+                if (event.shiftKey) {
+                    useFlowStore.getState().redo();
+                } else {
+                    useFlowStore.getState().undo();
+                }
+                return; // Stop processing
+            } else if ((event.ctrlKey || event.metaKey) && event.key === 'y') {
+                event.preventDefault();
+                useFlowStore.getState().redo();
+                return; // Stop processing
+            }
+
+            // Node Creation Shortcuts (T, A, V, G, B, S)
+            if (!event.ctrlKey && !event.altKey && !event.metaKey) {
+                let type: 'trigger' | 'action' | 'variable' | 'generator' | 'booster' | 'sink' | null = null;
+                let label = '';
+
+                switch (event.key.toLowerCase()) {
+                    case 't': type = 'trigger'; label = 'Trigger'; break;
+                    case 'a': type = 'action'; label = 'Action'; break;
+                    case 'v': type = 'variable'; label = 'Variable'; break;
+                    case 'g': type = 'generator'; label = 'Generator'; break;
+                    case 'b': type = 'booster'; label = 'Booster'; break;
+                    case 's': type = 'sink'; label = 'Sink'; break;
+                }
+
+                if (type) {
+                    const id = `${type}-${Date.now()}`;
+                    // Spawn at center of viewport
+                    const position = screenToFlowPosition({
+                        x: window.innerWidth / 2,
+                        y: window.innerHeight / 2,
+                    });
+
+                    const newNode = {
+                        id,
+                        type,
+                        position,
+                        data: { label: `New ${label}` },
+                        selected: true,
+                    };
+
+                    // Deselect others to highlight new node
+                    const checkState = useFlowStore.getState();
+                    if (checkState.nodes.length > 0) {
+                        const deselected = checkState.nodes.map(n => ({ ...n, selected: false }));
+                        checkState.setNodes(deselected);
+                    }
+
+                    useFlowStore.getState().addNode(newNode as any);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [screenToFlowPosition]);
+
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000' }} onDragOver={onDragOver} onDrop={onDrop}>
             <ReactFlow
@@ -95,6 +165,11 @@ function Flow() {
                 <Terminal />
                 <InventoryModal />
                 <MissionPanel />
+                <ResultCard />
+                <StorageControls />
+                <InventoryModal />
+                <MissionPanel />
+                <ShopModal />
                 <ResultCard />
                 <HelpModal />
             </ReactFlow>

@@ -1,12 +1,12 @@
 
-import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle, Repeat } from 'lucide-react';
+import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle, Repeat, ShoppingCart } from 'lucide-react';
 import { useFlowStore } from '@/store/flowStore';
 import { useState, useEffect } from 'react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
 import { useUiStore } from '@/store/uiStore';
 
 export function RunToolbar() {
-    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen, credits, isAutoRun, toggleAutoRun } = useFlowStore();
+    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen, credits, isAutoRun, toggleAutoRun, setShopOpen, upgrades } = useFlowStore();
     const { t } = useUiStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isN8NRunning, setIsN8NRunning] = useState(false);
@@ -21,14 +21,19 @@ export function RunToolbar() {
     useEffect(() => {
         let interval: NodeJS.Timeout;
         if (isAutoRun && !isRunning) {
+            // Apply Tick Speed Upgrade
+            const baseInterval = 2000;
+            const deduction = upgrades.tickSpeed * 200;
+            const tickInterval = Math.max(800, baseInterval - deduction);
+
             interval = setInterval(() => {
                 runGraph();
-            }, 3000); // 3 seconds tick
+            }, tickInterval);
         }
         return () => clearInterval(interval);
-    }, [isAutoRun, isRunning, runGraph]);
+    }, [isAutoRun, isRunning, runGraph, upgrades.tickSpeed]);
 
-    // Initial Server Check
+    // Initial Server Check (omitted for brevity, unchanged)
     useEffect(() => {
         const checkServer = async () => {
             try {
@@ -55,6 +60,7 @@ export function RunToolbar() {
         setExecutionMode('remote');
     };
 
+    // handleRunN8N omitted (unchanged)
     const handleRunN8N = async () => {
         if (isN8NRunning) return;
         setIsN8NRunning(true);
@@ -196,15 +202,26 @@ export function RunToolbar() {
 
                     {/* Mission 13: Credits & Gas HUD */}
                     <div className="flex items-center gap-3 px-3 py-1 bg-black/50 rounded-lg border border-white/10 backdrop-blur-md shadow-xl">
-                        <div className="flex items-center gap-1.5" title="Execution Budget (Gas)">
+                        <div className="flex items-center gap-1.5" title="Execution Budget (Variable)">
                             <Zap className="h-3 w-3 text-cyan-400 fill-cyan-400/50" />
-                            <span className="text-sm font-mono font-bold text-cyan-100">100</span>
+                            <span className="text-sm font-mono font-bold text-cyan-100">
+                                {100 + (upgrades.maxGas * 50)}
+                            </span>
                         </div>
                         <div className="h-4 w-px bg-white/20" />
                         <div className="flex items-center gap-1.5" title="Project Credits">
                             <span className="text-[10px] text-yellow-500 font-bold tracking-wider">CR</span>
                             <span className="text-lg font-mono font-bold text-white is-neon tracking-wide">{credits.toLocaleString()}</span>
                         </div>
+
+                        {/* Shop Button */}
+                        <button
+                            onClick={() => setShopOpen(true)}
+                            className="ml-2 rounded p-1 text-yellow-500 hover:bg-yellow-500/20 hover:scale-110 transition-all border border-yellow-500/30"
+                            title="Open Shop"
+                        >
+                            <ShoppingCart className="h-3.5 w-3.5" />
+                        </button>
                     </div>
 
                     <div className="h-6 w-px bg-white/10 mx-1" />
@@ -231,7 +248,7 @@ export function RunToolbar() {
                                 ? 'bg-green-600 outline outline-2 outline-green-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]'
                                 : 'bg-gray-700 hover:bg-gray-600'
                             }`}
-                        title="Toggle Auto Run (3s)"
+                        title={`Toggle Auto Run (${Math.max(800, 2000 - (upgrades.tickSpeed * 200))}ms)`}
                     >
                         <Repeat className={`h-4 w-4 ${isAutoRun ? 'animate-spin-slow' : ''}`} />
                     </button>
@@ -298,6 +315,7 @@ export function RunToolbar() {
                         <Settings className="h-4 w-4" />
                     </button>
                 </div>
+
 
                 <div className="flex items-center justify-between px-1 w-full">
                     <div className="flex items-center gap-2 text-xs">

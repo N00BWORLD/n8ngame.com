@@ -12,10 +12,16 @@ import { AppNode } from '@/features/editor/types';
 import { executeBlueprint } from '@/features/engine/execution/loop';
 import { executeRemote } from '@/features/engine/remote/RemoteExecutor';
 import { Blueprint } from '@/features/engine/graph/types';
-import { ExecutionLog, DEFAULT_ENGINE_CONFIG } from '@/features/engine/execution/types';
+import { ExecutionLog } from '@/features/engine/execution/types';
 import { ProjectBlueprint, CURRENT_BLUEPRINT_VERSION } from '@/features/storage/types';
 import { Viewport } from '@xyflow/react';
 import { deriveConnectionState } from '@/features/engine/connectionLogic';
+
+const UPGRADE_CONFIG = {
+    maxGas: { baseCost: 100, mult: 1.6, baseVal: 100, inc: 50 },
+    tickSpeed: { baseCost: 150, mult: 1.7, baseVal: 2000, dec: 200, min: 800 },
+    nodeLimit: { baseCost: 200, mult: 1.8, baseVal: 20, inc: 5 },
+};
 
 interface FlowState {
     nodes: AppNode[];
@@ -79,6 +85,29 @@ interface FlowState {
     isAutoRun: boolean;
     toggleAutoRun: () => void;
     setAutoRun: (active: boolean) => void;
+
+    // Undo/Redo State
+    past: Array<{ nodes: AppNode[]; edges: Edge[] }>,
+    future: Array<{ nodes: AppNode[]; edges: Edge[] }>,
+    takeSnapshot: () => void;
+    undo: () => void;
+    redo: () => void;
+
+    // Mission 13: Shop & Upgrades
+
+    // Mission 13: Shop & Upgrades
+    isShopOpen: boolean;
+    setShopOpen: (isOpen: boolean) => void;
+    upgrades: {
+        maxGas: number;
+        tickSpeed: number;
+        nodeLimit: number;
+    };
+    buyUpgrade: (type: 'maxGas' | 'tickSpeed' | 'nodeLimit') => void;
+
+    // Mission API-UI-1: Text Game
+    textState: string;
+    runText: (inputText: string) => Promise<void>;
 }
 
 export const useFlowStore = create<FlowState>((set, get) => ({
@@ -89,6 +118,55 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     isRunning: false,
     executionLogs: [],
     pendingConnection: null,
+
+    // Undo/Redo Defaults
+    past: [],
+    future: [],
+
+    takeSnapshot: () => {
+        set((state) => {
+            // Limit history to 30
+            const newPast = [...state.past, { nodes: state.nodes, edges: state.edges }];
+            if (newPast.length > 30) newPast.shift();
+
+            return {
+                past: newPast,
+                future: [] // Clear future on new action
+            };
+        });
+    },
+
+    undo: () => {
+        set((state) => {
+            if (state.past.length === 0) return {};
+
+            const previous = state.past[state.past.length - 1];
+            const newPast = state.past.slice(0, -1);
+
+            return {
+                past: newPast,
+                future: [{ nodes: state.nodes, edges: state.edges }, ...state.future],
+                nodes: previous.nodes,
+                edges: previous.edges
+            };
+        });
+    },
+
+    redo: () => {
+        set((state) => {
+            if (state.future.length === 0) return {};
+
+            const next = state.future[0];
+            const newFuture = state.future.slice(1);
+
+            return {
+                past: [...state.past, { nodes: state.nodes, edges: state.edges }],
+                future: newFuture,
+                nodes: next.nodes,
+                edges: next.edges
+            };
+        });
+    },
 
     // Inventory Defaults
     isInventoryOpen: false,
@@ -120,7 +198,124 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     },
     isAutoRun: false,
     toggleAutoRun: () => set((state) => ({ isAutoRun: !state.isAutoRun })),
-    setAutoRun: (active) => set({ isAutoRun: active }),
+    setAutoRun: (active: boolean) => set({ isAutoRun: active }),
+
+    // Mission 13: Shop & Upgrades
+    isShopOpen: false,
+    setShopOpen: (isOpen) => set({ isShopOpen: isOpen }),
+    upgrades: JSON.parse(localStorage.getItem('n8ngame_local_upgrades') || '{"maxGas":0,"tickSpeed":0,"nodeLimit":0}'),
+    buyUpgrade: (type) => {
+        const state = get();
+        const level = state.upgrades[type];
+
+        // Config definitions (moved inside to avoid scope issues or redefined)
+        const config = UPGRADE_CONFIG[type];
+        const cost = Math.floor(config.baseCost * Math.pow(config.mult, level));
+
+        if (state.credits >= cost) {
+            const newLevel = level + 1;
+
+            // Limit check for TickSpeed
+            if (type === 'tickSpeed') {
+                const tsConfig = UPGRADE_CONFIG.tickSpeed;
+                const newSpeed = tsConfig.baseVal - (newLevel * tsConfig.dec);
+                if (newSpeed < tsConfig.min) {
+                    const currentSpeed = tsConfig.baseVal - (level * tsConfig.dec);
+                    if (currentSpeed <= tsConfig.min) return;
+                }
+            }
+
+            const newUpgrades = { ...state.upgrades, [type]: newLevel };
+            const newCredits = state.credits - cost;
+
+            // Persistence
+            localStorage.setItem('n8ngame_local_upgrades', JSON.stringify(newUpgrades));
+            localStorage.setItem('n8ngame_local_credits', newCredits.toString());
+
+            set({
+                credits: newCredits,
+                upgrades: newUpgrades,
+                executionLogs: [...state.executionLogs, {
+                    nodeId: 'SHOP',
+                    nodeKind: 'system',
+                    timestamp: Date.now(),
+                    gasUsed: 0,
+                    error: `[SHOP] Purchased ${type} Lv.${newLevel} (cost ${cost})`
+                }]
+            });
+            set({
+                executionLogs: [...state.executionLogs, {
+                    nodeId: 'SHOP',
+                    nodeKind: 'system',
+                    timestamp: Date.now(),
+                    gasUsed: 0,
+                    error: `[SHOP] Not enough credits for ${type} (need ${cost})`
+                }]
+            });
+        }
+    },
+
+    // Mission API-UI-1: Text Game
+    textState: 'start',
+    runText: async (inputText: string) => {
+        const { textState, executionLogs } = get();
+
+        // 1. Optimistic Log (User Input)
+        set({
+            executionLogs: [...executionLogs, {
+                nodeId: 'USER',
+                nodeKind: 'trigger', // Green color
+                timestamp: Date.now(),
+                gasUsed: 0,
+                error: `> ${inputText}` // Convention for input
+            }]
+        });
+
+        try {
+            // 2. API Call
+            const response = await fetch('/api/run-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inputText, state: textState })
+            });
+
+            if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+            const data = await response.json();
+            // Expected: { lines: string[], nextState: string, rewards: [] }
+
+            // 3. Process Response
+            const lines = data.lines || [];
+            const nextState = data.nextState || textState;
+
+            // Log each line
+            const newLogs = lines.map((line: string) => ({
+                nodeId: 'GAME',
+                nodeKind: 'action', // Blue color
+                timestamp: Date.now(),
+                gasUsed: 0,
+                error: line // Using error field for message text as per existing Terminal logic
+            }));
+
+            // TODO: Handle rewards if present
+
+            set((state) => ({
+                textState: nextState,
+                executionLogs: [...state.executionLogs, ...newLogs]
+            }));
+
+        } catch (err: any) {
+            set((state) => ({
+                executionLogs: [...state.executionLogs, {
+                    nodeId: 'SYS',
+                    nodeKind: 'system',
+                    timestamp: Date.now(),
+                    gasUsed: 0,
+                    error: `[Error] ${err.message}`
+                }]
+            }));
+        }
+    },
 
 
     onPaneClick: () => {
@@ -128,16 +323,28 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     },
 
     onNodesChange: (changes) => {
+        // Snapshot triggers
+        const isStructuralChange = changes.some(c => c.type === 'remove' || c.type === 'add' || c.type === 'replace');
+        if (isStructuralChange) {
+            get().takeSnapshot();
+        }
+
         set({
             nodes: applyNodeChanges(changes, get().nodes) as AppNode[],
         });
     },
     onEdgesChange: (changes) => {
+        const isStructuralChange = changes.some(c => c.type === 'remove' || c.type === 'add' || c.type === 'replace');
+        if (isStructuralChange) {
+            get().takeSnapshot();
+        }
+
         set({
             edges: applyEdgeChanges(changes, get().edges),
         });
     },
     onConnect: (connection) => {
+        get().takeSnapshot();
         set({
             edges: addEdge({ ...connection, animated: true }, get().edges),
             pendingConnection: null, // Reset on drag connect too
@@ -155,6 +362,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
         } else if (result.status === 'cancelled') {
             set({ pendingConnection: null });
         } else if (result.status === 'completed') {
+            get().takeSnapshot();
             const { source, target } = result.payload;
             const connection = {
                 source: source.nodeId,
@@ -170,11 +378,33 @@ export const useFlowStore = create<FlowState>((set, get) => ({
         }
     },
     addNode: (node) => {
+        const { nodes, upgrades } = get();
+        // Node Limit Check
+        const limitConfig = { baseVal: 20, inc: 5 };
+        const maxNodes = limitConfig.baseVal + (upgrades.nodeLimit * limitConfig.inc);
+
+        if (nodes.length >= maxNodes) {
+            set({
+                executionLogs: [...get().executionLogs, {
+                    nodeId: 'system',
+                    nodeKind: 'system',
+                    timestamp: Date.now(),
+                    gasUsed: 0,
+                    error: `[LIMIT] Node limit reached (${maxNodes}). Upgrade in Shop!`
+                }]
+            });
+            return;
+        }
+
+        get().takeSnapshot();
         set({
             nodes: get().nodes.concat(node),
         });
     },
     setNodes: (nodes) => {
+        // Warning: setNodes might overwrite everything, potentially bypassing snapshot if used directly.
+        // For now, we assume direct setNodes is for loading or initialization where snapshot might not be desired
+        // OR we should snapshot? For 'Load', we usually clear history.
         set({ nodes });
     },
 
@@ -200,8 +430,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
         };
 
         try {
-            const { executionMode } = get();
-            const config = { maxGas: DEFAULT_ENGINE_CONFIG.maxGas };
+            const { executionMode, upgrades } = get();
+
+            // Max Gas Calculation
+            const gasConfig = UPGRADE_CONFIG.maxGas;
+            const maxGas = gasConfig.baseVal + (upgrades.maxGas * gasConfig.inc);
+            const config = { maxGas };
 
             let result;
             if (executionMode === 'remote') {
@@ -285,6 +519,8 @@ export const useFlowStore = create<FlowState>((set, get) => ({
         set({
             nodes: blueprint.graph.nodes,
             edges: blueprint.graph.edges,
+            past: [], // Clear history on load
+            future: []
             // setViewport needs to be handled by component
         });
     },

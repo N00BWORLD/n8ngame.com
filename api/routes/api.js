@@ -476,6 +476,45 @@ export async function apiRoutes(fastify, options) {
             };
         });
 
+        // POST /api/run-text (Mission API-UI-1)
+        privateRoutes.post('/run-text', async (request, reply) => {
+            const { inputText, state } = request.body || {};
+            const userId = request.user.id;
+
+            // Default N8N URL (or Mock for local dev if missing)
+            const n8nUrl = process.env.N8N_WEBHOOK_URL;
+
+            if (!n8nUrl) {
+                // Local Fallback / Mock
+                request.log.warn('N8N_WEBHOOK_URL not set. Using mock response.');
+                return {
+                    lines: [`[MOCK] Echo: ${inputText}`, `(Server state: ${state})`],
+                    nextState: state,
+                    rewards: []
+                };
+            }
+
+            try {
+                const response = await fetch(n8nUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, state, inputText })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    return reply.code(502).send({ error: 'n8n_error', message: text });
+                }
+
+                const json = await response.json();
+                return json; // Expect { lines: [], nextState: "", rewards: [] }
+
+            } catch (err) {
+                request.log.error(err);
+                return reply.code(500).send({ error: 'proxy_error', message: err.message });
+            }
+        });
+
     });
 }
 
