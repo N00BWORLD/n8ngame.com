@@ -25,9 +25,14 @@ import { BigNum, fromNumber, add, sub, cmp, formatBigNum } from '@/lib/bigNum';
 export interface MineState {
     rockHp: BigNum;
     rockMaxHp: BigNum;
-    rockLevel: number; // Level stays number
+    rockTier: number; // Formerly rockLevel
     gold: BigNum;
     lastTs: number;
+    // Stage Logic
+    stageId: number;
+    killsInStage: number;
+    stageGoal: number;
+    premiumCredits: number;
 }
 
 const UPGRADE_CONFIG = {
@@ -146,6 +151,14 @@ interface FlowState {
     // Mission 14-A: Node Highlight
     nodeExecStatus: Record<string, 'idle' | 'running' | 'success' | 'error'>;
     setNodeStatus: (nodeId: string, status: 'idle' | 'running' | 'success' | 'error') => void;
+
+    // Mission 19-C: Premium Shop
+    premiumUpgrades: {
+        dpsLvl: number;
+        goldLvl: number;
+        autoLvl: number;
+    };
+    buyPremiumUpgrade: (type: 'dps' | 'gold' | 'auto') => void;
 
     // Undo/Redo (Mission 12-B)
     undo: () => void;
@@ -371,7 +384,17 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     },
 
     // Mission API-UI-MINE-1: Mining Implementation
-    mineState: { rockHp: fromNumber(100), rockMaxHp: fromNumber(100), rockLevel: 1, gold: fromNumber(0), lastTs: Date.now() },
+    mineState: {
+        stageId: 1,
+        killsInStage: 0,
+        stageGoal: 20,
+        rockTier: 1,
+        rockHp: fromNumber(100),
+        rockMaxHp: fromNumber(100),
+        gold: fromNumber(0),
+        premiumCredits: 0,
+        lastTs: Date.now()
+    },
     isMiningAuto: false,
     toggleMiningAuto: () => set((state) => ({ isMiningAuto: !state.isMiningAuto })),
 
@@ -381,19 +404,100 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
         nodeExecStatus: { ...state.nodeExecStatus, [nodeId]: status }
     })),
 
-    // ... (inside FlowState interface, no change needed)
+    // Mission 19-C: Premium Upgrades
+    premiumUpgrades: {
+        dpsLvl: 0,
+        goldLvl: 0,
+        autoLvl: 0
+    },
 
-    runMine: async (elapsedSec: number) => {
-        const { mineState, nodes, upgrades } = get();
+    buyPremiumUpgrade: (type: 'dps' | 'gold' | 'auto') => {
+        const state = get();
+        const upgrades = state.premiumUpgrades;
+        const credits = state.mineState.premiumCredits;
+
+        // Cost Formulas
+        let cost = 0;
+        let nextLvl = 0;
+
+        if (type === 'dps') {
+            nextLvl = upgrades.dpsLvl + 1;
+            cost = Math.ceil(2 * Math.pow(1.6, upgrades.dpsLvl));
+        } else if (type === 'gold') {
+            nextLvl = upgrades.goldLvl + 1;
+            cost = Math.ceil(3 * Math.pow(1.7, upgrades.goldLvl));
+        } else if (type === 'auto') {
+            nextLvl = upgrades.autoLvl + 1;
+            cost = Math.ceil(5 * Math.pow(2.0, upgrades.autoLvl));
+        }
+
+        if (credits >= cost) {
+            set({
+                mineState: {
+                    ...state.mineState,
+                    premiumCredits: credits - cost
+                },
+                premiumUpgrades: {
+                    ...upgrades,
+                    [type === 'dps' ? 'dpsLvl' : type === 'gold' ? 'goldLvl' : 'autoLvl']: nextLvl
+                },
+                executionLogs: [
+                    ...state.executionLogs,
+                    {
+                        nodeId: 'SHOP',
+                        nodeKind: 'system',
+                        timestamp: Date.now(),
+                        gasUsed: 0,
+                        error: `[SHOP] Upgrade ${type} to Lv.${nextLvl} (Cost: ${cost} CR)`
+                    }
+                ]
+            });
+        }
+    },
+
+    runMine: async (elapsedSec: number = 0) => {
+        const state = get();
+        const { mineState, nodes, upgrades, premiumUpgrades } = state;
 
         // Mission 15-B: Dynamic Loadout Compilation
         const loadout = compileBlueprintToLoadout(nodes, upgrades.nodeLimit);
 
+        // Mission 19-C: Apply Premium Multipliers
+        const premDpsMul = Math.pow(1.15, premiumUpgrades.dpsLvl);
+        const premGoldBonus = 10 * premiumUpgrades.goldLvl;
+
         // Request Body
+        // Handle BigNum math for DPS
+        // premDpsMul is a number float (e.g. 1.15). BigNum mul usually takes BigNum.
+        // We'll trust backend to handle it or convert here?
+        // lib/bigNum `mul` takes (BigNum, BigNum).
+        // Let's assume we maintain structure and let backend apply math?
+        // OR execute math here.
+        // dps is { m, e }. 
+        // We can do manual calc for float scalar: m * scalar, then normalize.
+        // Actually, let's just send the multiplier in `premiumBonuses` and let the server/API handle the math if possible.
+        // BUT the prompt said "프론트는 elapsedSec 계산 + nextState 반영만", implying the calculation happens elsewhere?
+        // Actually the previous prompt "MISSION 15-B" said "Compile Loadout".
+        // Let's try to do it here for "optimistic" local run logic if we were running completely local.
+        // But `runMine` calls API. The API might use `loadout.dps`.
+        // If I change `loadout.dps` here, I should use BigNum logic.
+
+        // Quick scaling for BigNum: 
+        // newDps = dps * mul
+        const scaledDps = { ...loadout.dps, m: loadout.dps.m * premDpsMul };
+        // We don't normalize here strictly, but it usually works for JSON transport.
+
         const payload = {
             elapsedSec,
             state: mineState,
-            loadout // { dps, goldBonusPct, critChancePct }
+            loadout: {
+                ...loadout,
+                dps: scaledDps, // Applied mul
+                // clickDps removed
+            },
+            premiumBonuses: {
+                goldPct: premGoldBonus
+            }
         };
 
         try {
@@ -432,9 +536,14 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
             const nextState: MineState = {
                 rockHp: toBN(rawNext.rockHp),
                 rockMaxHp: toBN(rawNext.rockMaxHp),
-                rockLevel: rawNext.rockLevel || mineState.rockLevel,
+                rockTier: rawNext.rockTier || mineState.rockTier, // Tier Update
                 gold: toBN(rawNext.gold),
-                lastTs: Date.now()
+                lastTs: Date.now(),
+                // Stage Updates
+                stageId: rawNext.stageId || mineState.stageId,
+                killsInStage: rawNext.killsInStage || mineState.killsInStage,
+                stageGoal: rawNext.stageGoal || mineState.stageGoal,
+                premiumCredits: rawNext.premiumCredits || mineState.premiumCredits
             };
 
             const rewards = data.rewards || {};

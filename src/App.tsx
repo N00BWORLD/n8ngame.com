@@ -139,46 +139,48 @@ function Flow() {
     }, [screenToFlowPosition]);
 
     return (
-        <div className="relative h-screen w-screen bg-black overflow-hidden font-sans selection:bg-cyan-500/30" onDragOver={onDragOver} onDrop={onDrop}>
-            {/* Context/Store Providers could wrap this */}
-            <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                nodeTypes={nodeTypes}
-                onPaneClick={onPaneClick}
-                proOptions={{ hideAttribution: true }}
-                colorMode="dark"
-                fitView
-            >
-                <Background color="#111" gap={16} />
-                <Controls className="bg-gray-800/80 border-gray-700 text-white fill-white" />
+        <div className="flex flex-col h-screen w-screen bg-black overflow-hidden font-sans selection:bg-cyan-500/30">
+            {/* 1. Fixed Header (Safe Zone) */}
+            <div className="flex-none h-14 bg-[#111] border-b border-white/10 z-50 flex items-center justify-between px-4">
+                <TopLeftControls />
+                <RunToolbar />
+            </div>
 
-                {/* Top Bar Container for responsive layout */}
-                <div className="absolute top-0 left-0 right-0 z-50 flex flex-wrap items-start justify-between p-4 pointer-events-none">
+            {/* 2. Main Canvas Body */}
+            <div className="flex-1 relative" onDragOver={onDragOver} onDrop={onDrop}>
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    nodeTypes={nodeTypes}
+                    onPaneClick={onPaneClick}
+                    proOptions={{ hideAttribution: true }}
+                    colorMode="dark"
+                    fitView
+                >
+                    <Background color="#111" gap={16} />
+                    {/* Controls SAFE POSITION: Bottom Right */}
+                    <Controls position="bottom-right" className="bg-gray-800/80 border-gray-700 text-white fill-white mb-2 mr-2" />
+
+                    <NodePalette />
+                    <StorageControls />
+                    <Terminal />
+                    <InventoryModal />
+                    <MissionPanel />
+                    <ResultCard />
+                    <HelpModal />
+                    <ShopModal />
+                </ReactFlow>
+
+                {/* 3. Right HUD Layer (Absolute over Canvas) */}
+                <div className="absolute top-4 right-4 z-40 flex flex-col items-end gap-2 pointer-events-none">
                     <div className="pointer-events-auto">
-                        <TopLeftControls />
-                    </div>
-                    <div className="pointer-events-auto">
-                        <RunToolbar />
+                        <MiningPanel />
                     </div>
                 </div>
-
-                <NodePalette />
-                <StorageControls />
-                <Terminal />
-                <InventoryModal />
-                <MissionPanel />
-                <MiningPanel />
-                <ResultCard />
-
-                {/* Modals rendered via state */}
-                <HelpModal />
-                <ShopModal />
-
-            </ReactFlow>
+            </div>
         </div>
     );
 }
