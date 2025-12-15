@@ -63,18 +63,21 @@ export function MiningPanel() {
             <h3 className="text-xs font-bold uppercase text-muted-foreground mb-1">⛏️ Mining Control</h3>
 
             {/* Stats */}
-            <div className="text-xs font-mono bg-black/40 p-2 rounded mb-2">
-                <div className="flex justify-between">
-                    <span className="text-gray-400">Rock Lv:</span>
-                    <span className="text-white">{mineState.rockLevel}</span>
+            <div className="text-xs font-mono bg-black/40 p-2 rounded mb-2 space-y-2">
+                <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Rock Lv.{mineState.rockLevel}</span>
+                    <span className="text-yellow-400 font-bold">{mineState.gold}g</span>
                 </div>
-                <div className="flex justify-between">
-                    <span className="text-gray-400">HP:</span>
-                    <span className="text-red-400">{mineState.rockHp}/{mineState.rockMaxHp}</span>
-                </div>
-                <div className="flex justify-between border-t border-white/10 mt-1 pt-1">
-                    <span className="text-yellow-500">Gold:</span>
-                    <span className="text-yellow-300 font-bold">{mineState.gold}</span>
+
+                {/* HP Bar */}
+                <div className="relative h-4 bg-gray-800 rounded border border-white/10 overflow-hidden">
+                    <div
+                        className="absolute left-0 top-0 h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
+                        style={{ width: `${Math.max(0, Math.min(100, (mineState.rockHp / mineState.rockMaxHp) * 100))}%` }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white shadow-black drop-shadow-md">
+                        {mineState.rockHp} / {mineState.rockMaxHp}
+                    </div>
                 </div>
             </div>
 

@@ -7,14 +7,18 @@ interface NodeWrapperProps {
     icon?: React.ReactNode;
     colorClass?: string;
     selected?: boolean;
+    executionStatus?: 'idle' | 'running' | 'success' | 'error';
 }
 
-export function NodeWrapper({ children, title, icon, colorClass, selected }: NodeWrapperProps) {
+export function NodeWrapper({ children, title, icon, colorClass, selected, executionStatus }: NodeWrapperProps) {
     return (
         <div
             className={cn(
-                "flex min-w-[150px] flex-col rounded-md border bg-card text-card-foreground shadow-sm transition-all",
+                "flex min-w-[150px] flex-col rounded-md border bg-card text-card-foreground shadow-sm transition-all duration-200",
                 selected ? "ring-2 ring-primary" : "border-border",
+                executionStatus === 'running' && "border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.5)] ring-1 ring-cyan-400 animate-pulse",
+                executionStatus === 'success' && "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)] ring-1 ring-green-400 scale-105",
+                executionStatus === 'error' && "border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] ring-1 ring-red-400",
                 colorClass
             )}
         >

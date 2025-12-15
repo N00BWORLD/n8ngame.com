@@ -91,6 +91,14 @@ export async function executeBlueprint(
                 break;
             }
 
+            // Mission 14-A: Visual Feedback (Start)
+            if (config.onNodeExecution) {
+                config.onNodeExecution(node.id, 'running');
+            }
+            if (config.stepDelayMs && config.stepDelayMs > 0) {
+                await new Promise(resolve => setTimeout(resolve, config.stepDelayMs));
+            }
+
             // Execute Node
             const outputs = await runtime.execute(node, context);
 
@@ -109,6 +117,11 @@ export async function executeBlueprint(
 
             // Update Variables
             Object.assign(context.variables, outputs);
+
+            // Mission 14-A: Visual Feedback (Success)
+            if (config.onNodeExecution) {
+                config.onNodeExecution(node.id, 'success');
+            }
 
         } catch (error: any) {
             context.status = 'failed';

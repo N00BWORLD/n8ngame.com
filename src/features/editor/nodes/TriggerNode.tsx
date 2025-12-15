@@ -8,15 +8,17 @@ import { cn } from '@/lib/utils';
 export function TriggerNode({ id, data, selected }: NodeProps<AppNode>) {
     const onHandleClick = useFlowStore((state) => state.onHandleClick);
     const pendingConnection = useFlowStore((state) => state.pendingConnection);
+    const executionStatus = useFlowStore((state) => state.nodeExecStatus[id]);
 
-    const isPending = pendingConnection?.nodeId === id && pendingConnection?.type === 'source';
+    const isSourcePending = pendingConnection?.nodeId === id && pendingConnection?.type === 'source';
 
     return (
         <NodeWrapper
-            title="Start"
+            title="Trigger"
             icon={<Play className="h-4 w-4" />}
             colorClass="border-green-500/50 hover:border-green-500"
             selected={selected}
+            executionStatus={executionStatus}
         >
             <div className="flex flex-col gap-2">
                 <label className="text-[10px] text-muted-foreground uppercase">{data.label}</label>
@@ -27,7 +29,7 @@ export function TriggerNode({ id, data, selected }: NodeProps<AppNode>) {
             <Handle
                 type="source"
                 position={Position.Bottom}
-                className={cn("!bg-green-500", isPending && "pending")}
+                className={cn("!bg-green-500", isSourcePending && "pending")}
                 onClick={(e) => {
                     e.stopPropagation(); // Prevent node selection
                     onHandleClick(id, null, 'source');

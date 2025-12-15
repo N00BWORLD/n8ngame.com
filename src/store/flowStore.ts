@@ -120,6 +120,10 @@ interface FlowState {
     isMiningAuto: boolean;
     toggleMiningAuto: () => void;
     runMine: (elapsedSec: number) => Promise<void>;
+
+    // Mission 14-A: Node Highlight
+    nodeExecStatus: Record<string, 'idle' | 'running' | 'success' | 'error'>;
+    setNodeStatus: (nodeId: string, status: 'idle' | 'running' | 'success' | 'error') => void;
 }
 
 export const useFlowStore = create<FlowState>((set, get) => ({
@@ -334,6 +338,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     isMiningAuto: false,
     toggleMiningAuto: () => set((state) => ({ isMiningAuto: !state.isMiningAuto })),
 
+    // Mission 14-A: Node Highlight
+    nodeExecStatus: {},
+    setNodeStatus: (nodeId, status) => set((state) => ({
+        nodeExecStatus: { ...state.nodeExecStatus, [nodeId]: status }
+    })),
+
     runMine: async (elapsedSec: number) => {
         const { mineState } = get();
 
@@ -372,7 +382,19 @@ export const useFlowStore = create<FlowState>((set, get) => ({
             const lines = data.lines || [];
             const nextState = data.nextState || mineState;
             const rewards = data.rewards || {};
-            const goldGained = rewards.goldGained || 0;
+            // Mission 14-B: Handle Gold/Credits
+            // "gold" in mineState, OR "credits" if we want to unify?
+            // "mineState.gold를 credits로 합쳐도 됨" -> Let's keep separate for "Mini-Game" gold vs "Project" credits for now, 
+            // OR if rewards has 'creditsGained', add to main credits.
+
+            // Sync Gold to MineState
+            // NextState should have the total gold, so we trust it.
+
+            // If rewards has credits?
+            if (rewards.creditsGained) {
+                const currentCredits = get().credits;
+                get().setCredits(currentCredits + rewards.creditsGained);
+            }
 
             // Logs
             const newLogs = lines.map((line: string) => ({
@@ -389,23 +411,23 @@ export const useFlowStore = create<FlowState>((set, get) => ({
                 nodeKind: 'system', // Yellow
                 timestamp: Date.now(),
                 gasUsed: 0,
-                error: `[SUMMARY] +${goldGained}g | Lv.${nextState.rockLevel} HP ${nextState.rockHp}/${nextState.rockMaxHp} | Total ${nextState.gold}g`
+                error: `[SUMMARY] HP ${nextState.rockHp}/${nextState.rockMaxHp} | Gold: ${nextState.gold}g`
             });
 
             set((state) => ({
-                mineState: { ...nextState, lastTs: Date.now() }, // Update local TS
+                mineState: { ...nextState, lastTs: Date.now() },
                 executionLogs: [...state.executionLogs, ...newLogs]
             }));
 
         } catch (e: any) {
-            console.error(e);
+            // Mission 14-B: Safe Fail (No Console Throw)
             set((state) => ({
                 executionLogs: [...state.executionLogs, {
                     nodeId: 'MINE',
                     nodeKind: 'system',
                     timestamp: Date.now(),
                     gasUsed: 0,
-                    error: `[Network Error] API unreachable`
+                    error: `[Network Error] API unreachable (Check Server)`
                 }],
                 isMiningAuto: false
             }));
@@ -530,7 +552,24 @@ export const useFlowStore = create<FlowState>((set, get) => ({
             // Max Gas Calculation
             const gasConfig = UPGRADE_CONFIG.maxGas;
             const maxGas = gasConfig.baseVal + (upgrades.maxGas * gasConfig.inc);
-            const config = { maxGas };
+            const config = {
+                maxGas,
+                // Mission 14-A: Visual Execution
+                stepDelayMs: 120, // Visible delay
+                onNodeExecution: (nodeId: string, status: 'running' | 'success' | 'error') => {
+                    get().setNodeStatus(nodeId, status);
+                    // Auto-reset success to idle after a delay for "flash" effect? 
+                    // Or keep it green? Prompt says "300ms 후 idle 복귀".
+                    if (status === 'success') {
+                        setTimeout(() => {
+                            get().setNodeStatus(nodeId, 'idle');
+                        }, 300);
+                    }
+                    if (status === 'running') {
+                        // Ensure previous success is cleared? Or just running.
+                    }
+                }
+            };
 
             let result;
             if (executionMode === 'remote') {

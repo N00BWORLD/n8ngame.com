@@ -32,6 +32,10 @@ export interface ExecutionConfig {
      */
     maxGas: number;
     initialVariables?: Record<string, any>;
+
+    // Mission 14-A: Visual Execution
+    stepDelayMs?: number;
+    onNodeExecution?: (nodeId: string, status: 'running' | 'success' | 'error') => void;
 }
 
 export type NodeRuntime = {

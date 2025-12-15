@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 export function ActionNode({ id, data, selected }: NodeProps<AppNode>) {
     const onHandleClick = useFlowStore((state) => state.onHandleClick);
     const pendingConnection = useFlowStore((state) => state.pendingConnection);
+    // Mission 14-A: Execution Status
+    const executionStatus = useFlowStore((state) => state.nodeExecStatus[id]);
 
     const isSourcePending = pendingConnection?.nodeId === id && pendingConnection?.type === 'source';
     // Target doesn't usually glow as pending source, but we could highlight valid targets?
@@ -19,6 +21,7 @@ export function ActionNode({ id, data, selected }: NodeProps<AppNode>) {
             icon={<Zap className="h-4 w-4" />}
             colorClass="border-blue-500/50 hover:border-blue-500"
             selected={selected}
+            executionStatus={executionStatus}
         >
             <div className="flex flex-col gap-1">
                 <span className="text-xs">{data.label}</span>
