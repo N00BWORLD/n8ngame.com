@@ -14,6 +14,7 @@ import { MissionPanel } from '@/features/missions/MissionPanel';
 import { HelpModal } from '@/features/help/HelpModal';
 import { initUiSettings } from '@/store/uiStore';
 import { CreditsHUD } from '@/features/economy/CreditsHUD';
+import { ShopPanel } from '@/features/shop/ShopPanel';
 import { TopLeftControls } from '@/components/TopLeftControls';
 import { ResultCard } from '@/components/ResultCard';
 
@@ -78,6 +79,7 @@ function Flow() {
                 <Controls />
                 <TopLeftControls />
                 <CreditsHUD />
+                <ShopPanel />
 
                 <NodePalette />
                 <RunToolbar />

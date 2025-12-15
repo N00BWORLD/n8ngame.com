@@ -1,3 +1,4 @@
+import { NODE_CATALOG, SHOP_ITEMS } from '../services/catalog.js';
 import { redis } from '../services/redis.js';
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
@@ -472,6 +473,115 @@ export async function apiRoutes(fastify, options) {
                 grantCredits,
                 newCredits,
                 invalidReason
+            };
+        });
+
+
+        // GET /api/shop
+        privateRoutes.get('/shop', async (request, reply) => {
+            return { ok: true, items: Object.values(SHOP_ITEMS) };
+        });
+
+        // POST /api/shop/buy
+        privateRoutes.post('/shop/buy', async (request, reply) => {
+            const { sku } = request.body || {};
+            const shopItem = SHOP_ITEMS[sku];
+
+            if (!shopItem) return reply.code(400).send({ error: 'bad_request', message: 'Invalid SKU' });
+
+            const sb = createClient(supabaseUrl, serviceRoleKey);
+            const userId = request.user.id;
+
+            // 1. Check Credits
+            const { data: creditItem } = await sb
+                .from('inventory')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('item_type', 'currency_credits')
+                .single();
+
+            const currentCredits = creditItem?.quantity ?? (creditItem?.metadata?.stack || 0);
+
+            if (currentCredits < shopItem.price) {
+                return reply.code(402).send({ error: 'payment_required', message: 'Not enough credits' });
+            }
+
+            // 2. Process Payment (Deduct Credits)
+            const newCredits = currentCredits - shopItem.price;
+            await sb.from('inventory').upsert({
+                user_id: userId,
+                item_type: 'currency_credits',
+                quantity: newCredits,
+                metadata: { stack: newCredits },
+                updated_at: new Date()
+            }, { onConflict: 'user_id, item_type' });
+
+            // 3. Roll Drop
+            const rand = Math.random();
+            let rarity = 'common';
+            const odds = shopItem.odds; // { common, rare, legendary }
+
+            if (rand < odds.legendary) rarity = 'legendary';
+            else if (rand < odds.legendary + odds.rare) rarity = 'rare';
+            else rarity = 'common';
+
+            const candidates = NODE_CATALOG.filter(n => n.rarity === rarity);
+            // Fallback if empty catalog for rarity
+            const finalCandidates = candidates.length > 0 ? candidates : NODE_CATALOG;
+            const dropNode = finalCandidates[Math.floor(Math.random() * finalCandidates.length)];
+
+            // 4. Check Duplicate & Grant
+            const unlockItemType = `node_unlock:${dropNode.id}`;
+            const { data: existingUnlock } = await sb
+                .from('inventory')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('item_type', unlockItemType)
+                .single();
+
+            let dropResult = { nodeId: dropNode.id, rarity: dropNode.rarity, mode: 'unlocked' };
+
+            if (existingUnlock) {
+                // Duplicate -> Fragment Compensation
+                const fragmentQty = 20;
+                dropResult.mode = 'duplicate_fragment';
+                dropResult.fragmentQty = fragmentQty;
+
+                // Add Fragments
+                const { data: fragItem } = await sb
+                    .from('inventory')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .eq('item_type', 'node_fragment')
+                    .single();
+
+                const currentFrags = fragItem?.quantity ?? (fragItem?.metadata?.stack || 0);
+                const newFrags = currentFrags + fragmentQty;
+
+                await sb.from('inventory').upsert({
+                    user_id: userId,
+                    item_type: 'node_fragment',
+                    quantity: newFrags,
+                    metadata: { stack: newFrags },
+                    updated_at: new Date()
+                }, { onConflict: 'user_id, item_type' });
+            } else {
+                // New Unlock
+                await sb.from('inventory').upsert({
+                    user_id: userId,
+                    item_type: unlockItemType,
+                    quantity: 1,
+                    metadata: { unlockedAt: new Date().toISOString() },
+                    updated_at: new Date()
+                }, { onConflict: 'user_id, item_type' });
+            }
+
+            return {
+                ok: true,
+                sku,
+                spent: shopItem.price,
+                drop: dropResult,
+                newCredits
             };
         });
 
