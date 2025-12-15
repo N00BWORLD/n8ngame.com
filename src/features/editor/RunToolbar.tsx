@@ -1,5 +1,5 @@
 
-import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle, Repeat, ShoppingCart } from 'lucide-react';
+import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle, Repeat, ShoppingCart, SquareTerminal } from 'lucide-react';
 import { useFlowStore } from '@/store/flowStore';
 import { useState, useEffect } from 'react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
@@ -8,7 +8,7 @@ import { useUiStore } from '@/store/uiStore';
 import { formatBigNum } from '@/lib/bigNum';
 
 export function RunToolbar() {
-    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen, credits, isAutoRun, toggleAutoRun, setShopOpen, upgrades } = useFlowStore();
+    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen, credits, isAutoRun, toggleAutoRun, setShopOpen, upgrades, isTerminalOpen, setTerminalOpen } = useFlowStore();
 
     const { t } = useUiStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -165,9 +165,9 @@ export function RunToolbar() {
     };
 
     return (
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 max-w-full overflow-visible">
             {/* Status Indicator & Reset */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0 order-1">
                 <div className="flex items-center gap-2 text-xs" title={statusText}>
                     <span className={`h-2 w-2 rounded-full ${(isRunning || isN8NRunning) ? 'bg-yellow-400 animate-pulse' : (serverHealthy ? 'bg-green-500' : 'bg-red-500')}`} />
                     <span className="text-gray-400 hidden lg:inline">{statusText} {(!serverHealthy && !isRunning && !isN8NRunning) ? '(Offline)' : ''}</span>
@@ -338,6 +338,15 @@ export function RunToolbar() {
                     title={t('btn.help')}
                 >
                     <HelpCircle className="h-4 w-4" />
+                </button>
+
+                {/* Mission 20-M: Terminal Toggle */}
+                <button
+                    onClick={() => setTerminalOpen(!isTerminalOpen)}
+                    className={`rounded p-2 transition-colors ${isTerminalOpen ? 'text-green-400 bg-white/10' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
+                    title="Toggle Terminal"
+                >
+                    <SquareTerminal className="h-4 w-4" />
                 </button>
 
                 <button

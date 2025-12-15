@@ -18,3 +18,12 @@ export interface ProjectBlueprint {
 }
 
 export const CURRENT_BLUEPRINT_VERSION = '1.0.0';
+
+export interface StorageSlot {
+    id: number; // 1-20
+    name: string;
+    updatedAt: number;
+    blueprint?: ProjectBlueprint;
+}
+
+export const STORAGE_KEY_V1 = 'n8ngame:blueprints:v1';

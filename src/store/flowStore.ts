@@ -88,11 +88,19 @@ interface FlowState {
     isHelpOpen: boolean;
     setHelpOpen: (isOpen: boolean) => void;
 
+    // Terminal State (Mission 20-M)
+    isTerminalOpen: boolean;
+    setTerminalOpen: (isOpen: boolean) => void;
+
     // Result State
     isResultOpen: boolean;
     setResultOpen: (isOpen: boolean) => void;
     lastExecutionResult: any;
     setLastExecutionResult: (result: any) => void;
+
+    // Blueprint Modal State (Mission 21-A)
+    isBlueprintModalOpen: boolean;
+    setBlueprintModalOpen: (isOpen: boolean) => void;
 
     // Mission 13: Credits & AutoRun
     credits: BigNum;
@@ -384,11 +392,19 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     isHelpOpen: false,
     setHelpOpen: (isOpen) => set({ isHelpOpen: isOpen }),
 
+    // Terminal State (Mission 20-M)
+    isTerminalOpen: false, // Default closed on mobile
+    setTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
+
     // Result Card State
     isResultOpen: false,
     setResultOpen: (isOpen) => set({ isResultOpen: isOpen }),
     lastExecutionResult: null,
     setLastExecutionResult: (result) => set({ lastExecutionResult: result }),
+
+    // Blueprint Modal State
+    isBlueprintModalOpen: false,
+    setBlueprintModalOpen: (isOpen) => set({ isBlueprintModalOpen: isOpen }),
 
     // Credits & AutoRun
     credits: fromNumber(0),

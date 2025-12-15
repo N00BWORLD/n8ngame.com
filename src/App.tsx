@@ -17,6 +17,7 @@ import { TopLeftControls } from '@/components/TopLeftControls';
 import { ResultCard } from '@/components/ResultCard';
 import { ShopModal } from '@/features/economy/ShopModal';
 import { MiningPanel } from '@/features/ui/MiningPanel';
+import { BlueprintsModal } from '@/features/storage/BlueprintsModal';
 
 // import { InventoryDrawer } from '@/features/inventory/InventoryDrawer'; // If this doesn't exist, don't import it. Assuming InventoryModal is the one.
 
@@ -140,14 +141,14 @@ function Flow() {
 
     return (
         <div className="flex flex-col h-screen w-screen bg-black overflow-hidden font-sans selection:bg-cyan-500/30">
-            {/* 1. Fixed Header (Safe Zone) */}
-            <div className="flex-none h-14 bg-[#111] border-b border-white/10 z-50 flex items-center justify-between px-4">
+            {/* 1. Fixed Header (Safe Zone) - Responsive Height */}
+            <div className="flex-none h-12 sm:h-14 bg-[#111] border-b border-white/10 z-50 flex items-center justify-between px-2 sm:px-4 pt-[env(safe-area-inset-top)]">
                 <TopLeftControls />
                 <RunToolbar />
             </div>
 
             {/* 2. Main Canvas Body */}
-            <div className="flex-1 relative" onDragOver={onDragOver} onDrop={onDrop}>
+            <div className="flex-1 relative pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]" onDragOver={onDragOver} onDrop={onDrop}>
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -161,8 +162,8 @@ function Flow() {
                     fitView
                 >
                     <Background color="#111" gap={16} />
-                    {/* Controls SAFE POSITION: Bottom Right */}
-                    <Controls position="bottom-right" className="bg-gray-800/80 border-gray-700 text-white fill-white mb-2 mr-2" />
+                    {/* Controls SAFE POSITION: Bottom Right - Adjusted for Mobile */}
+                    <Controls position="bottom-right" className="bg-gray-800/80 border-gray-700 text-white fill-white mb-16 mr-2 sm:mb-2 sm:mr-2" />
 
                     <NodePalette />
                     <StorageControls />
@@ -172,10 +173,11 @@ function Flow() {
                     <ResultCard />
                     <HelpModal />
                     <ShopModal />
+                    <BlueprintsModal />
                 </ReactFlow>
 
                 {/* 3. Right HUD Layer (Absolute over Canvas) */}
-                <div className="absolute top-4 right-4 z-40 flex flex-col items-end gap-2 pointer-events-none">
+                <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-40 flex flex-col items-end gap-2 pointer-events-none origin-top-right scale-90 sm:scale-100">
                     <div className="pointer-events-auto">
                         <MiningPanel />
                     </div>

@@ -43,7 +43,7 @@ export function NodePalette() {
     };
 
     return (
-        <div className="absolute bottom-8 left-1/2 z-50 flex -translate-x-1/2 gap-2 rounded-full glass-panel p-2">
+        <div className="absolute bottom-4 right-4 sm:bottom-8 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-col sm:flex-row gap-2 rounded-xl sm:rounded-full glass-panel p-2 max-h-[55vh] sm:max-h-none overflow-y-auto sm:overflow-visible overflow-x-hidden sm:overflow-x-auto scrollbar-hide bg-black/90 sm:bg-black/50 border border-white/10">
             {NODE_TYPES.map((type) => (
                 <button
                     key={type.type}
@@ -53,7 +53,7 @@ export function NodePalette() {
                         event.dataTransfer.effectAllowed = 'move';
                     }}
                     onClick={() => addNodeCenter(type.type, type.label)}
-                    className={`flex items-center gap-2 rounded-full px-4 py-2 cyber-button ${type.color} cursor-grab active:cursor-grabbing`}
+                    className={`flex items-center gap-2 rounded-lg sm:rounded-full px-4 py-3 sm:px-4 sm:py-2 cyber-button ${type.color} cursor-grab active:cursor-grabbing flex-shrink-0 w-full sm:w-auto transition-all hover:bg-white/5`}
                 >
                     {type.icon}
                     <span className="text-sm font-medium">{type.label}</span>

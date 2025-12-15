@@ -6,6 +6,7 @@ export function Terminal() {
     const logs = useFlowStore((state) => state.executionLogs);
     const clearLogs = useFlowStore((state) => state.clearLogs);
     const runText = useFlowStore((state) => state.runText);
+    const { isTerminalOpen, setTerminalOpen } = useFlowStore();
     const [inputValue, setInputValue] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -14,7 +15,7 @@ export function Terminal() {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [logs]);
+    }, [logs, isTerminalOpen]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && inputValue.trim()) {
@@ -23,24 +24,29 @@ export function Terminal() {
         }
     };
 
-    // Always render panel (even if empty, to show input)
-    // if (logs.length === 0) return null; // REMOVED
-
-
+    if (!isTerminalOpen) return null;
 
     return (
-        <div className="absolute bottom-0 left-0 right-0 z-40 flex h-[350px] flex-col glass-panel border-t shadow-2xl backdrop-blur-xl bg-black/80">
+        <div className="absolute bottom-0 left-0 right-0 z-40 flex h-[35vh] sm:h-[350px] flex-col glass-panel border-t shadow-2xl backdrop-blur-xl bg-black/80 pb-[env(safe-area-inset-bottom)]">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-2 bg-white/5">
                 <h3 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                     Terminal Link
                 </h3>
-                <button
-                    onClick={clearLogs}
-                    className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-white/10 transition-colors"
-                >
-                    Clear Output
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={clearLogs}
+                        className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-white/10 transition-colors"
+                    >
+                        Clear Output
+                    </button>
+                    <button
+                        onClick={() => setTerminalOpen(false)}
+                        className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-white/10 transition-colors"
+                    >
+                        Close
+                    </button>
+                </div>
             </div>
 
             {/* Logs Area */}
