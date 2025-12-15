@@ -33,7 +33,11 @@ export function RunToolbar() {
         getEquippedItem(type as any)
     );
     const loadout = computeLoadout(equippedItems);
-    const tickIntervalMs = loadout.intervalSec * 1000;
+
+    // Apply Auto-Run Speed Upgrade (Mission 26-B)
+    const upgradeReduction = upgrades.tickSpeed * 30; // 30s per upgrade
+    const finalIntervalSec = Math.max(60, loadout.intervalSec - upgradeReduction);
+    const tickIntervalMs = finalIntervalSec * 1000;
 
     // Auto Run Loop (Mission 13 + 22-B)
     useEffect(() => {
