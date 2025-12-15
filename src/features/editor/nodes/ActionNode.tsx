@@ -17,6 +17,7 @@ export function ActionNode({ id, data, selected }: NodeProps<AppNode>) {
 
     return (
         <NodeWrapper
+            id={id}
             title="Action"
             icon={<Zap className="h-4 w-4" />}
             colorClass="border-blue-500/50 hover:border-blue-500"

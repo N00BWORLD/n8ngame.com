@@ -14,6 +14,7 @@ export function TriggerNode({ id, data, selected }: NodeProps<AppNode>) {
 
     return (
         <NodeWrapper
+            id={id}
             title="Trigger"
             icon={<Play className="h-4 w-4" />}
             colorClass="border-green-500/50 hover:border-green-500"

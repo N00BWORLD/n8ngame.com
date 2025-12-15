@@ -15,6 +15,7 @@ export function VariableNode({ id, data, selected }: NodeProps<AppNode>) {
 
     return (
         <NodeWrapper
+            id={id}
             title="Variable"
             icon={<Database className="h-4 w-4" />}
             colorClass="border-purple-500/50 hover:border-purple-500"

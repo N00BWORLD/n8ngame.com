@@ -47,6 +47,7 @@ interface FlowState {
     onConnect: (connection: Connection) => void;
     addNode: (node: AppNode) => void;
     setNodes: (nodes: AppNode[]) => void;
+    setEdges: (edges: Edge[]) => void;
 
     // Execution State
     executionMode: 'local' | 'remote';
@@ -102,6 +103,10 @@ interface FlowState {
     isBlueprintModalOpen: boolean;
     setBlueprintModalOpen: (isOpen: boolean) => void;
 
+    // Preset Modal State (Mission 21-B)
+    isPresetOpen: boolean;
+    setPresetOpen: (isOpen: boolean) => void;
+
     // Mission 13: Credits & AutoRun
     credits: BigNum;
     setCredits: (credits: BigNum) => void;
@@ -156,6 +161,17 @@ interface FlowState {
 export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     nodes: [],
     edges: [],
+    setNodes: (nodes) => set({ nodes }),
+    setEdges: (edges) => set({ edges }),
+
+    // Mission 21-B: Presets
+    isPresetOpen: false,
+    setPresetOpen: (isOpen) => set({ isPresetOpen: isOpen }),
+
+    // Mission 21-A: Blueprints
+    isBlueprintModalOpen: false,
+    setBlueprintModalOpen: (isOpen) => set({ isBlueprintModalOpen: isOpen }),
+
     executionMode: 'local',
     setExecutionMode: (mode) => set({ executionMode: mode }),
     isRunning: false,
@@ -257,7 +273,8 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
         set({ nodes: nodes.concat(node) });
         get().takeSnapshot();
     },
-    setNodes: (nodes) => set({ nodes }),
+    // setNodes removed (duplicate)
+
 
     runGraph: async () => {
         const { nodes, edges, executionMode, upgrades } = get();
@@ -402,9 +419,8 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     lastExecutionResult: null,
     setLastExecutionResult: (result) => set({ lastExecutionResult: result }),
 
-    // Blueprint Modal State
-    isBlueprintModalOpen: false,
-    setBlueprintModalOpen: (isOpen) => set({ isBlueprintModalOpen: isOpen }),
+    // Blueprint Modal State (Duplicate removed)
+
 
     // Credits & AutoRun
     credits: fromNumber(0),
@@ -550,50 +566,61 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
 
         const loadout = compileBlueprintToLoadout(nodes, upgrades.nodeLimit);
 
+        // Mission 22-B: Slot Loadout Integration
+        const { useSlotStore } = require('@/store/slotStore');
+        const { computeLoadout } = require('@/features/slots/utils');
+
+        const { getEquippedItem } = useSlotStore.getState();
+        const equippedItems = ['TRIGGER', 'DAMAGE', 'GOLD', 'UTILITY'].map(type => getEquippedItem(type));
+        const slotLoadoutStats = computeLoadout(equippedItems);
+
         const premDpsMul = Math.pow(1.15, premiumUpgrades.dpsLvl);
-        const premGoldBonus = 10 * premiumUpgrades.goldLvl;
 
-        // Quick scaling for BigNum: 
-        const scaledDps = { ...loadout.dps, m: loadout.dps.m * premDpsMul };
+        // Merge Slot Loadout into Logic
+        const finalDps = {
+            m: (loadout.dps.m + slotLoadoutStats.dps) * premDpsMul,
+            e: loadout.dps.e
+        };
 
-        const payload = {
-            elapsedSec,
-            state: mineState,
-            loadout: {
-                ...loadout,
-                dps: scaledDps,
-            },
-            premiumBonuses: {
-                goldPct: premGoldBonus
-            }
+        // Merged Loadout for API
+        const apiLoadout = {
+            ...loadout,
+            dps: finalDps,
+            goldBonusPct: (loadout.goldBonusPct || 0) + slotLoadoutStats.goldBonusPct,
+            intervalSec: slotLoadoutStats.intervalSec
         };
 
         try {
-            const response = await fetch('/api/mine', {
+            const res = await fetch('/api/mine', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('sb-access-token')}`
+                },
+                body: JSON.stringify({
+                    elapsedSec,
+                    state: {
+                        rockHp: mineState.rockHp,
+                        gold: mineState.gold,
+                        finalDps
+                    },
+                    loadout: apiLoadout
+                })
             });
 
-            const data = await response.json();
+            if (!res.ok) {
+                set(() => ({ isMiningAuto: false }));
+                return;
+            }
 
-            if (!data.ok) {
-                set((state) => ({
-                    executionLogs: [...state.executionLogs, {
-                        nodeId: 'MINE',
-                        nodeKind: 'system',
-                        timestamp: Date.now(),
-                        gasUsed: 0,
-                        error: `[Mine Failed] ${data.error || 'Server Required'}`
-                    }],
-                    isMiningAuto: false
-                }));
+            const data = await res.json();
+
+            if (!data.success && !data.ok && !data.state) {
                 return;
             }
 
             // Success Updates
             const lines = data.lines || [];
-
             const rawNext = data.nextState || {};
             const toBN = (val: any) => (val && typeof val === 'object' && 'm' in val) ? val : fromNumber(val || 0);
 

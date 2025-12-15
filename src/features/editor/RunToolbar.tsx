@@ -1,14 +1,17 @@
 
-import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle, Repeat, ShoppingCart, SquareTerminal } from 'lucide-react';
+import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle, Repeat, ShoppingCart, SquareTerminal, BookTemplate } from 'lucide-react';
 import { useFlowStore } from '@/store/flowStore';
+import { useSlotStore } from '@/store/slotStore';
+import { computeLoadout } from '@/features/slots/utils';
 import { useState, useEffect } from 'react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
+import { PresetModal } from '@/features/editor/PresetModal';
 import { useUiStore } from '@/store/uiStore';
 
 import { formatBigNum } from '@/lib/bigNum';
 
 export function RunToolbar() {
-    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen, credits, isAutoRun, toggleAutoRun, setShopOpen, upgrades, isTerminalOpen, setTerminalOpen } = useFlowStore();
+    const { isRunning, executionLogs, runGraph, clearLogs, executionMode, setExecutionMode, toBlueprint, setInventoryOpen, refreshInventory, setMissionOpen, setMissions, setHelpOpen, setLastExecutionResult, setResultOpen, credits, isMiningAuto, toggleMiningAuto, setShopOpen, upgrades, isTerminalOpen, setTerminalOpen, setPresetOpen, runMine } = useFlowStore();
 
     const { t } = useUiStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -20,21 +23,28 @@ export function RunToolbar() {
         ? t('ui.status.running')
         : (executionLogs.length > 0 ? t('ui.status.completed') : t('ui.status.ready'));
 
-    // Auto Run Loop (Mission 13)
+    // Mission 22-B: Loadout Integration
+    const { getEquippedItem } = useSlotStore();
+
+    // Compute Interval from Loadout
+    const equippedItems = ['TRIGGER', 'DAMAGE', 'GOLD', 'UTILITY'].map(type =>
+        getEquippedItem(type as any)
+    );
+    const loadout = computeLoadout(equippedItems);
+    const tickIntervalMs = loadout.intervalSec * 1000;
+
+    // Auto Run Loop (Mission 13 + 22-B)
     useEffect(() => {
         let interval: NodeJS.Timeout;
-        if (isAutoRun && !isRunning) {
-            // Apply Tick Speed Upgrade
-            const baseInterval = 2000;
-            const deduction = upgrades.tickSpeed * 200;
-            const tickInterval = Math.max(800, baseInterval - deduction);
-
+        if (isMiningAuto) {
+            // Immediate run? Maybe.
+            // runMine();
             interval = setInterval(() => {
-                runGraph();
-            }, tickInterval);
+                runMine(0);
+            }, tickIntervalMs);
         }
         return () => clearInterval(interval);
-    }, [isAutoRun, isRunning, runGraph, upgrades.tickSpeed]);
+    }, [isMiningAuto, tickIntervalMs, runMine]);
 
     // Initial Server Check (omitted for brevity, unchanged)
     useEffect(() => {
@@ -273,16 +283,16 @@ export function RunToolbar() {
 
                 {/* Mission 13: Auto Run Toggle */}
                 <button
-                    onClick={toggleAutoRun}
-                    disabled={isRunning && !isAutoRun}
+                    onClick={toggleMiningAuto}
+                    disabled={isRunning && !isMiningAuto}
                     className={`flex items-center gap-2 rounded px-3 py-2 font-bold text-white transition-all
-                        ${isAutoRun
+                        ${isMiningAuto
                             ? 'bg-green-600 outline outline-2 outline-green-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]'
                             : 'bg-gray-700 hover:bg-gray-600'
                         }`}
                     title={`Toggle Auto Run`}
                 >
-                    <Repeat className={`h-4 w-4 ${isAutoRun ? 'animate-spin-slow' : ''}`} />
+                    <Repeat className={`h-4 w-4 ${isMiningAuto ? 'animate-spin-slow' : ''}`} />
                     <span className="ml-1 text-[10px] font-mono">
                         {(() => {
                             const base = 600;
@@ -306,6 +316,17 @@ export function RunToolbar() {
                 >
                     <Zap className={`h-4 w-4 ${isN8NRunning ? 'animate-pulse' : 'fill-current'}`} />
                     <span className="hidden lg:inline">{isN8NRunning ? 'n8n...' : 'n8n'}</span>
+                </button>
+
+                <div className="h-6 w-px bg-white/10 mx-1" />
+
+                {/* Mission 21-B: Presets */}
+                <button
+                    onClick={() => setPresetOpen(true)}
+                    className="rounded p-2 text-cyan-400 hover:bg-white/10 hover:text-white transition-colors"
+                    title="Node Presets"
+                >
+                    <BookTemplate className="h-4 w-4" />
                 </button>
 
                 <div className="h-6 w-px bg-white/10 mx-1" />
@@ -359,6 +380,7 @@ export function RunToolbar() {
             </div>
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+            <PresetModal />
         </div>
     );
 }
