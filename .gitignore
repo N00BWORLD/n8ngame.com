@@ -112,15 +112,3 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
-
-st/
-venv*/
-*.pdf
-**/node_modules/
-**/dist/
-
-st/
-venv*/
-*.pdf
-**/node_modules/
-**/dist/

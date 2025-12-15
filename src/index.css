@@ -1,0 +1,118 @@
+@import '@xyflow/react/dist/style.css';
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Cyberpunk Palette (Default Dark) */
+    --font-sans: 'Fira Code', monospace;
+    /* Cyberpunk is Mono-heavy */
+    --font-mono: 'Fira Code', monospace;
+
+    --background: 224 71% 4%;
+    /* Slate 950 */
+    --foreground: 213 31% 91%;
+    /* Slate 100 */
+
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+
+    --popover: 224 71% 4%;
+    --popover-foreground: 213 31% 91%;
+
+    --primary: 190 100% 50%;
+    /* Cyan Neon */
+    --primary-foreground: 224 71% 4%;
+
+    --secondary: 215 27.9% 16.9%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 215 27.9% 16.9%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 190 100% 50%;
+    --accent-foreground: 224 71% 4%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --ring: 190 100% 50%;
+
+    --radius: 0.25rem;
+    /* sharper corners */
+  }
+
+  .dark {
+    /* Same as root since Cyberpunk is dark-first */
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+
+    --popover: 224 71% 4%;
+    --popover-foreground: 213 31% 91%;
+
+    --primary: 190 100% 50%;
+    --primary-foreground: 224 71% 4%;
+
+    --secondary: 215 27.9% 16.9%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 215 27.9% 16.9%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 190 100% 50%;
+    --accent-foreground: 224 71% 4%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --ring: 190 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-mono antialiased;
+  }
+}
+
+/* ReactFlow Customizations */
+.react-flow__handle {
+  width: 10px;
+  height: 10px;
+  transition: all 0.2s ease;
+  border-radius: 0 !important;
+  /* Square handles for Cyberpunk */
+}
+
+/* Neon Glow for Pending Connection */
+.react-flow__handle.pending {
+  background-color: #00FFFF !important;
+  box-shadow: 0 0 15px #00FFFF, 0 0 30px #00FFFF;
+  border-color: #000;
+  transform: scale(1.3);
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-black/80 backdrop-blur-md border border-cyan-500/30 shadow-cyber-panel transition-all duration-300;
+  }
+
+  /* Additional Cyberpunk Utilities */
+  .cyber-button {
+    @apply border border-cyan-500/50 hover:border-cyan-500 hover:bg-cyan-500/10 hover:shadow-cyber-button transition-all duration-200 text-cyan-400 hover:text-cyan-300 uppercase tracking-wider;
+  }
+}
