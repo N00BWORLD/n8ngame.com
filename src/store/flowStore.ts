@@ -12,11 +12,9 @@ import {
 import { AppNode } from '@/features/editor/types';
 import { executeBlueprint } from '@/features/engine/execution/loop';
 import { executeRemote } from '@/features/engine/remote/RemoteExecutor';
-import { Blueprint } from '@/features/engine/graph/types';
 import { ExecutionLog } from '@/features/engine/execution/types';
 import { ProjectBlueprint, CURRENT_BLUEPRINT_VERSION } from '@/features/storage/types';
 import { Viewport } from '@xyflow/react';
-import { deriveConnectionState } from '@/features/engine/connectionLogic';
 
 import { BALANCE_CONFIG } from '@/config/balance';
 import { compileBlueprintToLoadout } from '@/features/engine/mining/loadoutCompiler';
@@ -254,56 +252,61 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     setNodes: (nodes) => set({ nodes }),
 
     runGraph: async () => {
-        const { nodes, edges, executionMode, upgrades, credits } = get();
+        const { nodes, edges, executionMode, upgrades } = get();
         set({ isRunning: true });
 
         // Calculate Max Gas
         const gasConfig = UPGRADE_CONFIG.maxGas;
         const maxGas = gasConfig.baseVal + (upgrades.maxGas * gasConfig.inc);
 
+        // Map AppNode to EngineNode (type -> kind)
+        // We cast to any to allow passing 'data' through, as runtimes likely need it
+        const engineNodes = nodes.map(n => ({
+            ...n,
+            kind: n.type,
+            // Ensure inputs/outputs if required by strictly typed EngineNode, but for now we trust runtime usage
+        })) as any[];
+
         if (executionMode === 'local') {
-            await executeBlueprint(
-                { nodes, edges },
-                (log) => set((s) => ({ executionLogs: [...s.executionLogs, log] })),
-                (nodeId, status) => get().setNodeStatus(nodeId, status),
-                (nodeId) => {
-                    // Start Node Callback? Not used yet but available
-                },
-                maxGas,
-                credits,
-                (creditsDelta) => {
-                    // Apply credit cost (deduct) or refund
-                    const current = get().credits;
-                    const next = add(current, fromNumber(creditsDelta)); // Delta can be negative
-                    set({ credits: next });
+            const result = await executeBlueprint(
+                { nodes: engineNodes, edges },
+                {
+                    maxGas,
+                    onNodeExecution: (nodeId, status) => get().setNodeStatus(nodeId, status)
                 }
             );
+
+            set((s) => ({
+                executionLogs: [...s.executionLogs, ...result.logs],
+                credits: add(s.credits, fromNumber(result.creditsDelta || 0))
+            }));
         } else {
-            const logs = await executeRemote({ nodes, edges });
-            set((s) => ({ executionLogs: [...s.executionLogs, ...logs] }));
+            const result = await executeRemote(
+                { nodes: engineNodes, edges },
+                { maxGas }
+            );
+            set((s) => ({ executionLogs: [...s.executionLogs, ...result.logs] }));
         }
 
         set({ isRunning: false });
     },
 
-    pendingConnection: null,
     onHandleClick: (nodeId, handleId, type) => {
         const { pendingConnection, onConnect, executionLogs } = get();
 
         if (!pendingConnection) {
             set({ pendingConnection: { nodeId, handleId, type } });
-            // Optional: Log selection
             return;
         }
 
         if (pendingConnection.nodeId === nodeId) {
-            set({ pendingConnection: null }); // Cancel if clicked same node
+            set({ pendingConnection: null });
             return;
         }
 
         if (pendingConnection.type === type) {
             set({
-                pendingConnection: { nodeId, handleId, type }, // Switch selection if same type
+                pendingConnection: { nodeId, handleId, type },
                 executionLogs: [...executionLogs, {
                     nodeId: 'UI',
                     nodeKind: 'system',
@@ -315,7 +318,6 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
             return;
         }
 
-        // Valid connection pair
         const source = pendingConnection.type === 'source' ? pendingConnection : { nodeId, handleId };
         const target = pendingConnection.type === 'target' ? pendingConnection : { nodeId, handleId };
 
@@ -325,8 +327,7 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
             source: source.nodeId,
             sourceHandle: source.handleId,
             target: target.nodeId,
-            targetHandle: target.handleId,
-            id: `e-${source.nodeId}-${target.nodeId}-${Date.now()}`
+            targetHandle: target.handleId
         });
 
         set({ pendingConnection: null });
@@ -335,21 +336,29 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
 
     // Blueprint Storage
     toBlueprint: () => {
-        const { nodes, edges } = get();
+        const { nodes, edges, upgrades } = get();
         return {
-            nodes,
-            edges,
-            version: CURRENT_BLUEPRINT_VERSION,
             meta: {
                 name: 'Auto-Save',
+                version: CURRENT_BLUEPRINT_VERSION,
+                createdAt: Date.now(),
                 updatedAt: Date.now()
+            },
+            graph: {
+                nodes,
+                edges,
+                viewport: { x: 0, y: 0, zoom: 1 } // Default viewport, or fetch if available
+            },
+            config: {
+                maxGas: upgrades.maxGas, // Simplified mapping or reuse logic
+                initialVariables: {}
             }
-        };
+        } as ProjectBlueprint;
     },
-    loadBlueprint: (bp) => {
+    loadBlueprint: (bp: ProjectBlueprint) => {
         set({
-            nodes: bp.nodes,
-            edges: bp.edges,
+            nodes: bp.graph.nodes,
+            edges: bp.graph.edges,
             executionLogs: [],
             past: [],
             future: []
@@ -357,7 +366,7 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     },
 
     // Viewport State (Managed by ReactFlow, but we can store it slightly)
-    setViewport: (vp) => { /* Helper if needed for save/load viewport */ },
+    setViewport: (_vp) => { /* Helper if needed for save/load viewport */ },
 
     // Inventory Defaults
     isInventoryOpen: false,
@@ -405,7 +414,7 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
                 const tsConfig = UPGRADE_CONFIG.tickSpeed;
                 const newSpeed = tsConfig.baseVal - ((level + 1) * tsConfig.dec);
                 if (newSpeed < tsConfig.min) {
-                    const currentSpeed = tsConfig.baseVal - (level * tsConfig.dec);
+                    // Check current speed validity logic (removed unused currentSpeed var)
                     set({
                         executionLogs: [...state.executionLogs, {
                             nodeId: 'SHOP',
@@ -572,8 +581,8 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
             const rawNext = data.nextState || {};
             const toBN = (val: any) => (val && typeof val === 'object' && 'm' in val) ? val : fromNumber(val || 0);
 
-            // Map tickets. If not present, fallback to premiumCredits (legacy)
-            const nextTickets = rawNext.tickets !== undefined ? rawNext.tickets : (rawNext.premiumCredits || mineState.tickets);
+            // Map tickets.
+            const nextTickets = rawNext.tickets ?? mineState.tickets;
 
             const nextState: MineState = {
                 rockHp: toBN(rawNext.rockHp),
@@ -589,8 +598,7 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
             };
 
             const rewards = data.rewards || {};
-            // If backend sends 'premiumCreditsGained', treat as tickets
-            const ticketsGained = rewards.ticketsGained || rewards.premiumCreditsGained || 0;
+            const ticketsGained = rewards.ticketsGained || 0;
 
             if (ticketsGained > 0) {
                 lines.push(`[REWARD] +${ticketsGained} Tickets!`);
@@ -681,5 +689,20 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
 
 }), {
     name: 'flow-storage',
-    version: 3, // Increased version to maybe trigger reset if schemas heavily diverge? Or just leave it.
+    version: 4,
+    migrate: (persistedState: any, version) => {
+        if (version < 4) {
+            // Migration: Move premiumCredits to tickets if exists
+            const mineState = persistedState.mineState || {};
+            if (mineState.premiumCredits !== undefined && (mineState.tickets === undefined || mineState.tickets === 0)) {
+                mineState.tickets = mineState.premiumCredits;
+                delete mineState.premiumCredits; // Clean up legacy key
+            }
+            return {
+                ...persistedState,
+                mineState
+            };
+        }
+        return persistedState;
+    },
 }));
