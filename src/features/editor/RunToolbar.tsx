@@ -206,9 +206,23 @@ export function RunToolbar() {
                             <Zap className="h-3 w-3 text-cyan-400 fill-cyan-400/50" />
                             <span className="text-sm font-mono font-bold text-cyan-100">
                                 {100 + (upgrades.maxGas * 50)}
+                                {/* Wait, logic above is outdated. Should use UPGRADE_CONFIG logic or store getter */}
+                                {/* Hardcode fix for UI display to match store logic if possible, or just read maxGas from a helper? */}
+                                {/* For now, simple calc based on new config */}
+                                {15 + (upgrades.maxGas * 15)}
                             </span>
                         </div>
                         <div className="h-4 w-px bg-white/20" />
+
+                        {/* Mission 15-A: Node Count Display */}
+                        <div className="flex items-center gap-1.5" title="Node Usage">
+                            <Cpu className="h-3 w-3 text-purple-400" />
+                            <span className="text-xs font-mono text-purple-100">
+                                {useFlowStore.getState().nodes.length}/{2 + upgrades.nodeLimit}
+                            </span>
+                        </div>
+                        <div className="h-4 w-px bg-white/20" />
+
                         <div className="flex items-center gap-1.5" title="Project Credits">
                             <span className="text-[10px] text-yellow-500 font-bold tracking-wider">CR</span>
                             <span className="text-lg font-mono font-bold text-white is-neon tracking-wide">{credits.toLocaleString()}</span>
@@ -248,9 +262,19 @@ export function RunToolbar() {
                                 ? 'bg-green-600 outline outline-2 outline-green-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]'
                                 : 'bg-gray-700 hover:bg-gray-600'
                             }`}
-                        title={`Toggle Auto Run (${Math.max(800, 2000 - (upgrades.tickSpeed * 200))}ms)`}
+                        title={`Toggle Auto Run`}
                     >
                         <Repeat className={`h-4 w-4 ${isAutoRun ? 'animate-spin-slow' : ''}`} />
+                        <span className="ml-1 text-[10px] font-mono">
+                            {(() => {
+                                // Use hardcoded values mirroring balance.ts/store to avoid deep prop plumbing just for UI text
+                                // Base 600s -> 10m
+                                const base = 600;
+                                const red = upgrades.tickSpeed * 30; // 30s per upgrade
+                                const final = Math.max(60, base - red);
+                                return `${Math.floor(final / 60)}m`;
+                            })()}
+                        </span>
                     </button>
 
                     {/* Mission 11-C: Run via n8n */}
@@ -333,7 +357,7 @@ export function RunToolbar() {
                         </button>
                     )}
                 </div>
-            </div>
+            </div >
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </>

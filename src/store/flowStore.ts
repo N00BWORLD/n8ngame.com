@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import {
     Edge,
     NodeChange,
@@ -17,10 +18,42 @@ import { ProjectBlueprint, CURRENT_BLUEPRINT_VERSION } from '@/features/storage/
 import { Viewport } from '@xyflow/react';
 import { deriveConnectionState } from '@/features/engine/connectionLogic';
 
+import { BALANCE_CONFIG } from '@/config/balance';
+import { compileBlueprintToLoadout } from '@/features/engine/mining/loadoutCompiler';
+import { BigNum, fromNumber, add, sub, cmp, formatBigNum } from '@/lib/bigNum';
+
+export interface MineState {
+    rockHp: BigNum;
+    rockMaxHp: BigNum;
+    rockLevel: number; // Level stays number
+    gold: BigNum;
+    lastTs: number;
+}
+
 const UPGRADE_CONFIG = {
-    maxGas: { baseCost: 100, mult: 1.6, baseVal: 100, inc: 50 },
-    tickSpeed: { baseCost: 150, mult: 1.7, baseVal: 2000, dec: 200, min: 800 },
-    nodeLimit: { baseCost: 200, mult: 1.8, baseVal: 20, inc: 5 },
+    // Mission 15-C: Shop Balance (Hardcore)
+    // 1. Node Limit: Cost 50, x2, +1
+    nodeLimit: {
+        baseCost: 50,
+        mult: 2,
+        baseVal: BALANCE_CONFIG.BASE_MAX_NODES,
+        inc: 1 // +1 Node
+    },
+    // 2. Gas Unit: Cost 80, x2, +5
+    maxGas: {
+        baseCost: 80,
+        mult: 2,
+        baseVal: BALANCE_CONFIG.BASE_MAX_GAS,
+        inc: 5 // +5 Gas
+    },
+    // 3. AutoRun: Cost 100, x2, -1 minute
+    tickSpeed: {
+        baseCost: 100,
+        mult: 2,
+        baseVal: BALANCE_CONFIG.BASE_AUTORUN_INTERVAL_MS,
+        dec: 60 * 1000, // -1 Minute
+        min: 60 * 1000  // Cap at 1m minimum
+    },
 };
 
 interface FlowState {
@@ -80,20 +113,11 @@ interface FlowState {
     setLastExecutionResult: (result: any) => void;
 
     // Mission 13: Credits & AutoRun
-    credits: number;
-    setCredits: (credits: number) => void;
+    credits: BigNum;
+    setCredits: (credits: BigNum) => void;
     isAutoRun: boolean;
     toggleAutoRun: () => void;
     setAutoRun: (active: boolean) => void;
-
-    // Undo/Redo State
-    past: Array<{ nodes: AppNode[]; edges: Edge[] }>,
-    future: Array<{ nodes: AppNode[]; edges: Edge[] }>,
-    takeSnapshot: () => void;
-    undo: () => void;
-    redo: () => void;
-
-    // Mission 13: Shop & Upgrades
 
     // Mission 13: Shop & Upgrades
     isShopOpen: boolean;
@@ -103,20 +127,18 @@ interface FlowState {
         tickSpeed: number;
         nodeLimit: number;
     };
-    buyUpgrade: (type: 'maxGas' | 'tickSpeed' | 'nodeLimit') => void;
+    buyUpgrade: (type: keyof typeof UPGRADE_CONFIG) => void;
 
     // Mission API-UI-1: Text Game
-    textState: string;
-    runText: (inputText: string) => Promise<void>;
+    textState: {
+        lastInput: string;
+        lastOutput: string;
+        isLoading: boolean;
+    };
+    runText: (input: string) => Promise<void>;
 
     // Mission API-UI-MINE-1: Mining
-    mineState: {
-        rockHp: number;
-        rockMaxHp: number;
-        rockLevel: number;
-        gold: number;
-        lastTs: number;
-    };
+    mineState: MineState;
     isMiningAuto: boolean;
     toggleMiningAuto: () => void;
     runMine: (elapsedSec: number) => Promise<void>;
@@ -124,9 +146,16 @@ interface FlowState {
     // Mission 14-A: Node Highlight
     nodeExecStatus: Record<string, 'idle' | 'running' | 'success' | 'error'>;
     setNodeStatus: (nodeId: string, status: 'idle' | 'running' | 'success' | 'error') => void;
+
+    // Undo/Redo (Mission 12-B)
+    undo: () => void;
+    redo: () => void;
+    takeSnapshot: () => void;
+    past: { nodes: AppNode[]; edges: Edge[] }[];
+    future: { nodes: AppNode[]; edges: Edge[] }[];
 }
 
-export const useFlowStore = create<FlowState>((set, get) => ({
+export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     nodes: [],
     edges: [],
     executionMode: 'local',
@@ -207,11 +236,8 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     setLastExecutionResult: (result) => set({ lastExecutionResult: result }),
 
     // Mission 13: Credits & AutoRun
-    credits: parseInt(localStorage.getItem('n8ngame_local_credits') || '0', 10),
-    setCredits: (credits) => {
-        localStorage.setItem('n8ngame_local_credits', credits.toString());
-        set({ credits });
-    },
+    credits: fromNumber(0),
+    setCredits: (credits) => set({ credits }),
     isAutoRun: false,
     toggleAutoRun: () => set((state) => ({ isAutoRun: !state.isAutoRun })),
     setAutoRun: (active: boolean) => set({ isAutoRun: active }),
@@ -219,34 +245,40 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     // Mission 13: Shop & Upgrades
     isShopOpen: false,
     setShopOpen: (isOpen) => set({ isShopOpen: isOpen }),
-    upgrades: JSON.parse(localStorage.getItem('n8ngame_local_upgrades') || '{"maxGas":0,"tickSpeed":0,"nodeLimit":0}'),
+    upgrades: { maxGas: 0, tickSpeed: 0, nodeLimit: 0 }, // Initial state, persist will load
     buyUpgrade: (type) => {
         const state = get();
         const level = state.upgrades[type];
 
         // Config definitions (moved inside to avoid scope issues or redefined)
         const config = UPGRADE_CONFIG[type];
-        const cost = Math.floor(config.baseCost * Math.pow(config.mult, level));
+        const costVal = Math.floor(config.baseCost * Math.pow(config.mult, level));
+        const cost = fromNumber(costVal);
 
-        if (state.credits >= cost) {
-            const newLevel = level + 1;
-
+        if (cmp(state.credits, cost) >= 0) { // credits >= cost
             // Limit check for TickSpeed
             if (type === 'tickSpeed') {
                 const tsConfig = UPGRADE_CONFIG.tickSpeed;
-                const newSpeed = tsConfig.baseVal - (newLevel * tsConfig.dec);
+                const newSpeed = tsConfig.baseVal - ((level + 1) * tsConfig.dec);
                 if (newSpeed < tsConfig.min) {
                     const currentSpeed = tsConfig.baseVal - (level * tsConfig.dec);
-                    if (currentSpeed <= tsConfig.min) return;
+                    if (currentSpeed <= tsConfig.min) {
+                        set({
+                            executionLogs: [...state.executionLogs, {
+                                nodeId: 'SHOP',
+                                nodeKind: 'system',
+                                timestamp: Date.now(),
+                                gasUsed: 0,
+                                error: `[SHOP] Tick Speed is already at minimum (${tsConfig.min / 1000}s)`
+                            }]
+                        });
+                        return;
+                    }
                 }
             }
 
-            const newUpgrades = { ...state.upgrades, [type]: newLevel };
-            const newCredits = state.credits - cost;
-
-            // Persistence
-            localStorage.setItem('n8ngame_local_upgrades', JSON.stringify(newUpgrades));
-            localStorage.setItem('n8ngame_local_credits', newCredits.toString());
+            const newUpgrades = { ...state.upgrades, [type]: level + 1 };
+            const newCredits = sub(state.credits, cost);
 
             set({
                 credits: newCredits,
@@ -256,23 +288,28 @@ export const useFlowStore = create<FlowState>((set, get) => ({
                     nodeKind: 'system',
                     timestamp: Date.now(),
                     gasUsed: 0,
-                    error: `[SHOP] Purchased ${type} Lv.${newLevel} (cost ${cost})`
+                    error: `[SHOP] Purchased ${type} Lv.${level + 1} (cost ${formatBigNum(cost)})`
                 }]
             });
+        } else {
             set({
                 executionLogs: [...state.executionLogs, {
                     nodeId: 'SHOP',
                     nodeKind: 'system',
                     timestamp: Date.now(),
                     gasUsed: 0,
-                    error: `[SHOP] Not enough credits for ${type} (need ${cost})`
+                    error: `[SHOP] Not enough credits! Need ${formatBigNum(cost)}`
                 }]
             });
         }
     },
 
     // Mission API-UI-1: Text Game
-    textState: 'start',
+    textState: {
+        lastInput: '',
+        lastOutput: 'Welcome to the system.',
+        isLoading: false
+    },
     runText: async (inputText: string) => {
         const { textState, executionLogs } = get();
 
@@ -334,7 +371,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     },
 
     // Mission API-UI-MINE-1: Mining Implementation
-    mineState: { rockHp: 100, rockMaxHp: 100, rockLevel: 1, gold: 0, lastTs: Date.now() },
+    mineState: { rockHp: fromNumber(100), rockMaxHp: fromNumber(100), rockLevel: 1, gold: fromNumber(0), lastTs: Date.now() },
     isMiningAuto: false,
     toggleMiningAuto: () => set((state) => ({ isMiningAuto: !state.isMiningAuto })),
 
@@ -344,14 +381,19 @@ export const useFlowStore = create<FlowState>((set, get) => ({
         nodeExecStatus: { ...state.nodeExecStatus, [nodeId]: status }
     })),
 
+    // ... (inside FlowState interface, no change needed)
+
     runMine: async (elapsedSec: number) => {
-        const { mineState } = get();
+        const { mineState, nodes, upgrades } = get();
+
+        // Mission 15-B: Dynamic Loadout Compilation
+        const loadout = compileBlueprintToLoadout(nodes, upgrades.nodeLimit);
 
         // Request Body
         const payload = {
             elapsedSec,
             state: mineState,
-            loadout: { dps: 7, goldBonusPct: 0 } // MVP Fixed Loadout
+            loadout // { dps, goldBonusPct, critChancePct }
         };
 
         try {
@@ -380,46 +422,43 @@ export const useFlowStore = create<FlowState>((set, get) => ({
 
             // Success Updates
             const lines = data.lines || [];
-            const nextState = data.nextState || mineState;
+
+            // Next State from API. API might send Numbers or BigNum objects.
+            // If API sends numbers (legacy), we convert. If it sends {m,e}, we use.
+            const rawNext = data.nextState || {};
+            // Helper to safe convert
+            const toBN = (val: any) => (val && typeof val === 'object' && 'm' in val) ? val : fromNumber(val || 0);
+
+            const nextState: MineState = {
+                rockHp: toBN(rawNext.rockHp),
+                rockMaxHp: toBN(rawNext.rockMaxHp),
+                rockLevel: rawNext.rockLevel || mineState.rockLevel,
+                gold: toBN(rawNext.gold),
+                lastTs: Date.now()
+            };
+
             const rewards = data.rewards || {};
-            // Mission 14-B: Handle Gold/Credits
-            // "gold" in mineState, OR "credits" if we want to unify?
-            // "mineState.gold를 credits로 합쳐도 됨" -> Let's keep separate for "Mini-Game" gold vs "Project" credits for now, 
-            // OR if rewards has 'creditsGained', add to main credits.
 
-            // Sync Gold to MineState
-            // NextState should have the total gold, so we trust it.
-
-            // If rewards has credits?
+            // Handle Credits
             if (rewards.creditsGained) {
+                // rewards.creditsGained might be number or BigNum
+                const gain = toBN(rewards.creditsGained);
                 const currentCredits = get().credits;
-                get().setCredits(currentCredits + rewards.creditsGained);
+                set({ credits: add(currentCredits, gain) });
             }
 
-            // Logs
-            const newLogs = lines.map((line: string) => ({
-                nodeId: 'MINE',
-                nodeKind: 'action',
-                timestamp: Date.now(),
-                gasUsed: 0,
-                error: line
-            }));
-
-            // Summary Log
-            newLogs.push({
-                nodeId: 'MINE',
-                nodeKind: 'system', // Yellow
-                timestamp: Date.now(),
-                gasUsed: 0,
-                error: `[SUMMARY] HP ${nextState.rockHp}/${nextState.rockMaxHp} | Gold: ${nextState.gold}g`
+            set({
+                mineState: nextState,
+                executionLogs: [...get().executionLogs, ...lines.map((line: string) => ({
+                    nodeId: 'MINE',
+                    nodeKind: 'action',
+                    timestamp: Date.now(),
+                    gasUsed: 0,
+                    output: line
+                }))].slice(-50) // Keep last 50
             });
 
-            set((state) => ({
-                mineState: { ...nextState, lastTs: Date.now() },
-                executionLogs: [...state.executionLogs, ...newLogs]
-            }));
-
-        } catch (e: any) {
+        } catch (err: any) {
             // Mission 14-B: Safe Fail (No Console Throw)
             set((state) => ({
                 executionLogs: [...state.executionLogs, {
@@ -497,7 +536,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     addNode: (node) => {
         const { nodes, upgrades } = get();
         // Node Limit Check
-        const limitConfig = { baseVal: 20, inc: 5 };
+        const limitConfig = UPGRADE_CONFIG.nodeLimit;
         const maxNodes = limitConfig.baseVal + (upgrades.nodeLimit * limitConfig.inc);
 
         if (nodes.length >= maxNodes) {
@@ -580,9 +619,9 @@ export const useFlowStore = create<FlowState>((set, get) => ({
                 // Mission 13: Handle Credits
                 if (result.creditsDelta !== undefined) {
                     const currentCredits = get().credits;
-                    const newTotal = currentCredits + result.creditsDelta;
+                    const newTotal = add(currentCredits, fromNumber(result.creditsDelta));
 
-                    if (get().isAutoRun && newTotal < 0) {
+                    if (get().isAutoRun && newTotal.m === 0 && newTotal.e === 0) {
                         set({ isAutoRun: false });
                         // Add bankruptcy log
                         result.logs.push({
@@ -662,4 +701,14 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     setViewport: (_viewport) => {
         // Only if we were tracking it in store, but mostly we let ReactFlow handle it
     }
+}), {
+    name: 'n8ngame-flow-store',
+    partialize: (state) => ({
+        nodes: state.nodes,
+        edges: state.edges,
+        credits: state.credits,
+        upgrades: state.upgrades,
+        mineState: state.mineState,
+        isMiningAuto: state.isMiningAuto
+    })
 }));

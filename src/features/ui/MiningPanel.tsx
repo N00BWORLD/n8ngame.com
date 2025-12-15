@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useFlowStore } from '@/store/flowStore';
+import { formatBigNum } from '@/lib/bigNum';
 
 export function MiningPanel() {
     const mineState = useFlowStore((state) => state.mineState);
@@ -53,30 +54,45 @@ export function MiningPanel() {
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, [mineState.lastTs, isMiningAuto, runMine]);
 
+    // HP Bar Logic
+    // We need percentage. BigNum doesn't sport division easily yet, but BigNum to number is possible for ratio if exponents are close.
+    // e.g. hp: {m: 5, e: 2}, max: {m: 1, e: 3} -> 500 / 1000 = 0.5
+    // For ratio, we can just do (m1/m2) * 10^(e1-e2)
+    // Avoid double precision overflow for HUGE numbers?
+    // ratio = (m1/m2) * 10^(e1-e2)
+    const getHpPct = () => {
+        const hp = mineState.rockHp;
+        const max = mineState.rockMaxHp;
+        if (max.m === 0) return 0;
+
+        const ratio = (hp.m / max.m) * Math.pow(10, hp.e - max.e);
+        return Math.min(Math.max(ratio * 100, 0), 100);
+    };
+
     // Manual Handlers
     const handleMine = (sec: number) => {
         runMine(sec);
     };
 
     return (
-        <div className="absolute top-[80px] left-4 z-40 flex flex-col gap-2 p-3 glass-panel border border-white/10 w-[200px]">
-            <h3 className="text-xs font-bold uppercase text-muted-foreground mb-1">⛏️ Mining Control</h3>
+        <div className="absolute top-[80px] left-4 z-40 flex flex-col gap-2 p-3 glass-panel border border-white/10 w-[200px] bg-gray-900/90 rounded-lg backdrop-blur-md shadow-xl">
+            <h3 className="text-xs font-bold uppercase text-muted-foreground mb-1 text-gray-400">⛏️ Mining Control</h3>
 
             {/* Stats */}
             <div className="text-xs font-mono bg-black/40 p-2 rounded mb-2 space-y-2">
                 <div className="flex justify-between items-center">
                     <span className="text-gray-400">Rock Lv.{mineState.rockLevel}</span>
-                    <span className="text-yellow-400 font-bold">{mineState.gold}g</span>
+                    <span className="text-yellow-400 font-bold">{formatBigNum(mineState.gold)}g</span>
                 </div>
 
                 {/* HP Bar */}
-                <div className="relative h-4 bg-gray-800 rounded border border-white/10 overflow-hidden">
+                <div className="h-4 bg-gray-800 rounded border border-white/10 overflow-hidden relative">
                     <div
                         className="absolute left-0 top-0 h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
-                        style={{ width: `${Math.max(0, Math.min(100, (mineState.rockHp / mineState.rockMaxHp) * 100))}%` }}
+                        style={{ width: `${getHpPct()}%` }}
                     />
-                    <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white shadow-black drop-shadow-md">
-                        {mineState.rockHp} / {mineState.rockMaxHp}
+                    <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white shadow-black drop-shadow-md z-10">
+                        {formatBigNum(mineState.rockHp)} / {formatBigNum(mineState.rockMaxHp)}
                     </div>
                 </div>
             </div>

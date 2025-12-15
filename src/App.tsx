@@ -18,6 +18,8 @@ import { ResultCard } from '@/components/ResultCard';
 import { ShopModal } from '@/features/economy/ShopModal';
 import { MiningPanel } from '@/features/ui/MiningPanel';
 
+// import { InventoryDrawer } from '@/features/inventory/InventoryDrawer'; // If this doesn't exist, don't import it. Assuming InventoryModal is the one.
+
 const nodeTypes: NodeTypes = {
     trigger: TriggerNode,
     action: ActionNode,
@@ -29,7 +31,9 @@ const nodeTypes: NodeTypes = {
 };
 
 function Flow() {
-    const { nodes, edges, onNodesChange, onEdgesChange, onConnect, onPaneClick, addNode } = useFlowStore();
+    const {
+        nodes, edges, onNodesChange, onEdgesChange, onConnect, onPaneClick, addNode
+    } = useFlowStore();
     const { screenToFlowPosition } = useReactFlow();
 
     useEffect(() => {
@@ -135,7 +139,8 @@ function Flow() {
     }, [screenToFlowPosition]);
 
     return (
-        <div style={{ width: '100vw', height: '100vh', background: '#000' }} onDragOver={onDragOver} onDrop={onDrop}>
+        <div className="relative h-screen w-screen bg-black overflow-hidden font-sans selection:bg-cyan-500/30" onDragOver={onDragOver} onDrop={onDrop}>
+            {/* Context/Store Providers could wrap this */}
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -148,8 +153,8 @@ function Flow() {
                 colorMode="dark"
                 fitView
             >
-                <Background color="#222" gap={20} />
-                <Controls />
+                <Background color="#111" gap={16} />
+                <Controls className="bg-gray-800/80 border-gray-700 text-white fill-white" />
 
                 {/* Top Bar Container for responsive layout */}
                 <div className="absolute top-0 left-0 right-0 z-50 flex flex-wrap items-start justify-between p-4 pointer-events-none">
@@ -168,12 +173,11 @@ function Flow() {
                 <MissionPanel />
                 <MiningPanel />
                 <ResultCard />
-                <StorageControls />
-                <InventoryModal />
-                <MissionPanel />
-                <ShopModal />
-                <ResultCard />
+
+                {/* Modals rendered via state */}
                 <HelpModal />
+                <ShopModal />
+
             </ReactFlow>
         </div>
     );
