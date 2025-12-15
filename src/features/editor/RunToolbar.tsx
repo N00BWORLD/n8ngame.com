@@ -1,7 +1,7 @@
 
 import { Play, RotateCcw, Settings, Globe, Cpu, Zap, Package, Trophy, HelpCircle } from 'lucide-react';
 import { useFlowStore } from '@/store/flowStore';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
 import { useUiStore } from '@/store/uiStore';
 
@@ -10,11 +10,39 @@ export function RunToolbar() {
     const { t } = useUiStore();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isN8NRunning, setIsN8NRunning] = useState(false);
+    const [serverHealthy, setServerHealthy] = useState(true);
 
     // Status text
     const statusText = (isRunning || isN8NRunning)
         ? t('ui.status.running')
         : (executionLogs.length > 0 ? t('ui.status.completed') : t('ui.status.ready'));
+
+    // Initial Server Check
+    useEffect(() => {
+        const checkServer = async () => {
+            try {
+                // Determine API URL based on environment or default to relative
+                // In local development (Vite), this proxies to the backend if configured
+                // On Vercel (static frontend), this might fail or 404
+                const res = await fetch('/api/health');
+                if (res.ok) {
+                    setServerHealthy(true);
+                } else {
+                    setServerHealthy(false);
+                    setExecutionMode('local');
+                }
+            } catch (e) {
+                setServerHealthy(false);
+                setExecutionMode('local');
+            }
+        };
+        checkServer();
+    }, [setExecutionMode]);
+
+    const handleRemoteClick = () => {
+        if (!serverHealthy) return;
+        setExecutionMode('remote');
+    };
 
     const handleRunN8N = async () => {
         if (isN8NRunning) return;
@@ -118,7 +146,7 @@ export function RunToolbar() {
 
     return (
         <>
-            <div className="absolute top-4 right-4 z-50 flex flex-col gap-2 rounded-lg glass-panel p-2">
+            <div className="flex flex-col gap-2 rounded-lg glass-panel p-2 items-end">
                 <div className="flex items-center gap-2">
                     {/* Mode Toggle */}
                     <div className="flex rounded-lg bg-black/40 p-1">
@@ -132,16 +160,25 @@ export function RunToolbar() {
                             <Cpu className="h-3.5 w-3.5" />
                             Local
                         </button>
-                        <button
-                            onClick={() => setExecutionMode('remote')}
-                            className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors ${executionMode === 'remote'
-                                ? 'bg-cyan-600 text-white'
-                                : 'text-gray-400 hover:text-white'
-                                }`}
-                        >
-                            <Globe className="h-3.5 w-3.5" />
-                            Remote
-                        </button>
+
+                        <div className="relative group">
+                            <button
+                                onClick={handleRemoteClick}
+                                disabled={!serverHealthy}
+                                className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors ${executionMode === 'remote'
+                                    ? 'bg-cyan-600 text-white'
+                                    : (!serverHealthy ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-white')
+                                    }`}
+                            >
+                                <Globe className="h-3.5 w-3.5" />
+                                Remote
+                            </button>
+                            {!serverHealthy && (
+                                <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-900 text-xs text-gray-300 rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity z-[100] pointer-events-none">
+                                    Server Required (UM890/Docker)
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="h-6 w-px bg-white/10 mx-1" />
@@ -160,19 +197,26 @@ export function RunToolbar() {
                     </button>
 
                     {/* Mission 11-C: Run via n8n */}
-                    <button
-                        onClick={handleRunN8N}
-                        disabled={isRunning || isN8NRunning}
-                        className={`flex items-center gap-2 rounded px-4 py-2 font-bold text-white transition-all
-                            ${isN8NRunning
-                                ? 'bg-orange-800 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-orange-600 to-red-500 hover:scale-105 active:scale-95 shadow-lg shadow-orange-900/20'
-                            }`}
-                        title={t('btn.runViaN8n')}
-                    >
-                        <Zap className={`h-4 w-4 ${isN8NRunning ? 'animate-pulse' : 'fill-current'}`} />
-                        <span>{isN8NRunning ? 'n8n...' : 'n8n'}</span>
-                    </button>
+                    <div className="relative group">
+                        <button
+                            onClick={handleRunN8N}
+                            disabled={isRunning || isN8NRunning || !serverHealthy}
+                            className={`flex items-center gap-2 rounded px-4 py-2 font-bold text-white transition-all
+                                ${isN8NRunning || !serverHealthy
+                                    ? 'bg-gray-700 cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-orange-600 to-red-500 hover:scale-105 active:scale-95 shadow-lg shadow-orange-900/20'
+                                }`}
+                            title={t('btn.runViaN8n')}
+                        >
+                            <Zap className={`h-4 w-4 ${isN8NRunning ? 'animate-pulse' : 'fill-current'}`} />
+                            <span>{isN8NRunning ? 'n8n...' : 'n8n'}</span>
+                        </button>
+                        {!serverHealthy && (
+                            <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-900 text-xs text-gray-300 rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity z-[100] pointer-events-none">
+                                Server Required
+                            </div>
+                        )}
+                    </div>
 
                     <div className="h-6 w-px bg-white/10 mx-1" />
 
@@ -186,13 +230,21 @@ export function RunToolbar() {
                     </button>
 
                     {/* Mission 11-F: Missions */}
-                    <button
-                        onClick={() => setMissionOpen(true)}
-                        className="rounded p-2 text-yellow-500 hover:bg-white/10 hover:text-white transition-colors"
-                        title={t('btn.missions')}
-                    >
-                        <Trophy className="h-4 w-4" />
-                    </button>
+                    <div className="relative group">
+                        <button
+                            onClick={() => { if (serverHealthy) setMissionOpen(true) }}
+                            disabled={!serverHealthy}
+                            className={`rounded p-2 text-yellow-500 transition-colors ${serverHealthy ? 'hover:bg-white/10 hover:text-white' : 'opacity-50 cursor-not-allowed'}`}
+                            title={t('btn.missions')}
+                        >
+                            <Trophy className="h-4 w-4" />
+                        </button>
+                        {!serverHealthy && (
+                            <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-900 text-xs text-gray-300 rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity z-[100] pointer-events-none">
+                                Server Required
+                            </div>
+                        )}
+                    </div>
 
                     {/* Mission 11-H: Help */}
                     <button
@@ -212,10 +264,10 @@ export function RunToolbar() {
                     </button>
                 </div>
 
-                <div className="flex items-center justify-between px-1">
+                <div className="flex items-center justify-between px-1 w-full">
                     <div className="flex items-center gap-2 text-xs">
-                        <span className={`h-2 w-2 rounded-full ${(isRunning || isN8NRunning) ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`} />
-                        <span className="text-gray-400">{statusText}</span>
+                        <span className={`h-2 w-2 rounded-full ${(isRunning || isN8NRunning) ? 'bg-yellow-400 animate-pulse' : (serverHealthy ? 'bg-green-500' : 'bg-red-500')}`} />
+                        <span className="text-gray-400">{statusText} {(!serverHealthy && !isRunning && !isN8NRunning) ? '(Offline)' : ''}</span>
                     </div>
 
                     {executionLogs.length > 0 && (

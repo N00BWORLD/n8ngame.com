@@ -13,8 +13,6 @@ import { InventoryModal } from '@/features/inventory/InventoryModal';
 import { MissionPanel } from '@/features/missions/MissionPanel';
 import { HelpModal } from '@/features/help/HelpModal';
 import { initUiSettings } from '@/store/uiStore';
-import { CreditsHUD } from '@/features/economy/CreditsHUD';
-import { ShopPanel } from '@/features/shop/ShopPanel';
 import { TopLeftControls } from '@/components/TopLeftControls';
 import { ResultCard } from '@/components/ResultCard';
 
@@ -77,12 +75,18 @@ function Flow() {
             >
                 <Background color="#222" gap={20} />
                 <Controls />
-                <TopLeftControls />
-                <CreditsHUD />
-                <ShopPanel />
+
+                {/* Top Bar Container for responsive layout */}
+                <div className="absolute top-0 left-0 right-0 z-50 flex flex-wrap items-start justify-between p-4 pointer-events-none">
+                    <div className="pointer-events-auto">
+                        <TopLeftControls />
+                    </div>
+                    <div className="pointer-events-auto">
+                        <RunToolbar />
+                    </div>
+                </div>
 
                 <NodePalette />
-                <RunToolbar />
                 <StorageControls />
                 <Terminal />
                 <InventoryModal />

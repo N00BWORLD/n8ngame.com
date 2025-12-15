@@ -6,7 +6,7 @@ export function TopLeftControls() {
     const { lang, setLang, theme, toggleTheme, t } = useUiStore();
 
     return (
-        <div className="absolute top-4 left-4 z-50 flex items-center gap-2 rounded-lg glass-panel p-2">
+        <div className="flex items-center gap-2 rounded-lg glass-panel p-2">
             {/* Theme Toggle */}
             <button
                 onClick={toggleTheme}
