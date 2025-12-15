@@ -13,6 +13,7 @@ import { InventoryModal } from '@/features/inventory/InventoryModal';
 import { MissionPanel } from '@/features/missions/MissionPanel';
 import { HelpModal } from '@/features/help/HelpModal';
 import { initUiSettings } from '@/store/uiStore';
+import { CreditsHUD } from '@/features/economy/CreditsHUD';
 import { TopLeftControls } from '@/components/TopLeftControls';
 import { ResultCard } from '@/components/ResultCard';
 
@@ -76,6 +77,7 @@ function Flow() {
                 <Background color="#222" gap={20} />
                 <Controls />
                 <TopLeftControls />
+                <CreditsHUD />
 
                 <NodePalette />
                 <RunToolbar />

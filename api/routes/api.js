@@ -293,5 +293,188 @@ export async function apiRoutes(fastify, options) {
             return { success: true, id: blueprintId, version: nextVersion, updated_at: bp.updated_at };
         });
 
+        // POST /api/claim (Mission 12-IDLE-1: Idle Economy Loop)
+        privateRoutes.post('/claim', async (request, reply) => {
+            const { blueprintId } = request.body || {};
+            if (!blueprintId) return reply.code(400).send({ error: 'bad_request', message: 'Missing blueprintId' });
+
+            const sb = createClient(supabaseUrl, serviceRoleKey);
+            const userId = request.user.id;
+
+            // 1. Verify Blueprint Ownership
+            const { data: blueprint, error: bpError } = await sb
+                .from('blueprints')
+                .select('*')
+                .eq('id', blueprintId)
+                .eq('user_id', userId)
+                .single();
+
+            if (bpError || !blueprint) {
+                return reply.code(403).send({ error: 'forbidden', message: 'Blueprint not found or access denied' });
+            }
+
+            // 2. Fetch Last Claim Time (inventory: meta_last_claim)
+            const { data: lastClaimItem } = await sb
+                .from('inventory')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('item_type', 'meta_last_claim')
+                .single();
+
+            const lastClaimTs = lastClaimItem?.metadata?.ts
+                ? new Date(lastClaimItem.metadata.ts).getTime()
+                : Date.now(); // First time: treat as now (0 elapsed) effectively, or give initial buffer?
+            // Prompt says "lastClaim = ... (없으면 now로 초기화)". So 0 reward first time.
+
+            const now = Date.now();
+            let elapsedMs = now - lastClaimTs;
+            if (elapsedMs < 0) elapsedMs = 0;
+
+            const elapsedMinutes = Math.floor(elapsedMs / 60000);
+            const CAP_MINUTES = 720; // 12 hours
+            const validMinutes = Math.min(elapsedMinutes, CAP_MINUTES);
+
+            // 3. Blueprint Validation & Rate Calculation
+            let ratePerMin = 0;
+            let invalidReason = null;
+
+            // Fetch latest version data usually? Or use 'blueprint' table assuming it has 'data' column?
+            // api/routes/api.js upsert puts 'data' into 'blueprint_versions', but prompt says "Server... DB에서 '내 blueprint'를 조회".
+            // The 'blueprints' table might not have the graph data if it's normalized.
+            // Let's check 'POST /blueprints' implementation: it does upsert to 'blueprints' with payload?
+            // "const { data: bp ... } = await sb.from('blueprints').upsert(...)" -> payload has title, structure_version.
+            // The graph data ('data') is inserted into 'blueprint_versions'.
+            // So 'blueprints' table MIGHT NOT have the nodes/edges.
+            // I need to fetch the latest version content.
+
+            // However, the previous code for Upsert `POST /blueprints` receives `data: graphData` and inputs it to `blueprint_versions`.
+            // Let's look if `blueprints` table has a json column. 
+            // In `GET /blueprints`, it selects `*`.
+            // If `blueprints` table does not have the graph, I must fetch from `blueprint_versions`.
+
+            // Assume I need to fetch the version.
+            const { data: versionData, error: verError } = await sb
+                .from('blueprint_versions')
+                .select('data')
+                .eq('blueprint_id', blueprintId)
+                .order('version', { ascending: false })
+                .limit(1)
+                .single();
+
+            const graph = versionData?.data;
+
+            if (!graph || !graph.nodes || !Array.isArray(graph.nodes)) {
+                ratePerMin = 0;
+                invalidReason = "Invalid Blueprint Data";
+            } else {
+                // Loop Detection (Simple DFS)
+                const hasCycle = (nodes, edges) => {
+                    if (!edges || edges.length === 0) return false;
+                    const adj = {};
+                    edges.forEach(e => {
+                        if (!adj[e.source]) adj[e.source] = [];
+                        adj[e.source].push(e.target);
+                    });
+
+                    const visited = new Set();
+                    const recStack = new Set();
+
+                    const dfs = (nodeId) => {
+                        if (recStack.has(nodeId)) return true;
+                        if (visited.has(nodeId)) return false;
+                        visited.add(nodeId);
+                        recStack.add(nodeId);
+                        const children = adj[nodeId] || [];
+                        for (const child of children) {
+                            if (dfs(child)) return true;
+                        }
+                        recStack.delete(nodeId);
+                        return false;
+                    };
+
+                    for (const n of nodes) {
+                        if (dfs(n.id)) return true;
+                    }
+                    return false;
+                };
+
+                if (hasCycle(graph.nodes, graph.edges)) {
+                    ratePerMin = 0;
+                    invalidReason = "Cycle Detected";
+                } else {
+                    // Rate Calculation
+                    const nodesLen = graph.nodes.length;
+                    const edgesLen = (graph.edges || []).length;
+                    const base = 5;
+                    let modifierBonus = 0;
+
+                    // Option: modifier/variable node bonus
+                    // Checking for 'variable' type or similar based on prompt hints
+                    // "modifier/variable 노드가 있으면 +2 보너스"
+                    const hasModifier = graph.nodes.some(n =>
+                        n.type === 'variable' || n.type?.includes('modifier') || n.data?.label?.toLowerCase().includes('variable')
+                    );
+                    if (hasModifier) modifierBonus = 2;
+
+                    ratePerMin = base + (nodesLen * 1) + (edgesLen * 2) + modifierBonus;
+                }
+            }
+
+            // 4. Calculate Rewards
+            const grantCredits = (validMinutes > 0 && !invalidReason) ? (ratePerMin * validMinutes) : 0;
+
+            // 5. Update DB (Credits + Last Claim)
+            let newCredits = 0;
+
+            if (grantCredits > 0) {
+                // Upsert Credits
+                // Need to fetch current to add? Or upsert with logic?
+                // Supabase doesn't support atomic increment easily without RPC.
+                // For MVP, we fetch, add, update. (Race condition accepted for MVP)
+                const { data: creditItem } = await sb
+                    .from('inventory')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .eq('item_type', 'currency_credits')
+                    .single();
+
+                const currentQty = creditItem?.quantity ?? (creditItem?.metadata?.stack || 0);
+                newCredits = currentQty + grantCredits;
+
+                await sb.from('inventory').upsert({
+                    user_id: userId,
+                    item_type: 'currency_credits',
+                    quantity: newCredits,
+                    metadata: { stack: newCredits }, // Keep both in sync for safety
+                    updated_at: new Date()
+                }, { onConflict: 'user_id, item_type' });
+            }
+
+            // Update Last Claim to NOW (reset timer)
+            // Even if grant is 0, we verify if we should reset?
+            // "Claim을 누르면... meta_last_claim을 now로 업데이트" -> Always reset to prevent double dipping or just acknowledge interaction.
+            // If 0 minutes elapsed, usually we don't reset to let it accumulate more?
+            // "같은 분에 연속 Claim하면 elapsedMinutes=0 => 지급 0"
+            // If we reset, they lose the fractional seconds/minutes.
+            // But prompt says "step 8) meta_last_claim을 now로 업데이트". Implicitly always.
+            await sb.from('inventory').upsert({
+                user_id: userId,
+                item_type: 'meta_last_claim',
+                metadata: { ts: new Date().toISOString() },
+                updated_at: new Date()
+            }, { onConflict: 'user_id, item_type' });
+
+            return {
+                ok: true,
+                blueprintId,
+                elapsedMinutes: validMinutes,
+                ratePerMin,
+                grantCredits,
+                newCredits,
+                invalidReason
+            };
+        });
+
     });
 }
+
