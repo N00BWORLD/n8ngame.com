@@ -14,7 +14,9 @@ const UPGRADE_LABELS = {
 
 export function PremiumShopModal({ isOpen, onClose }: Props) {
     const { mineState, premiumUpgrades, buyPremiumUpgrade } = useFlowStore();
-    const credits = mineState.premiumCredits;
+    const tickets = mineState.tickets;
+    const gems = mineState.gems || 0;
+    const showGems = import.meta.env.VITE_SHOW_GEMS === 'true';
 
     if (!isOpen) return null;
 
@@ -61,10 +63,15 @@ export function PremiumShopModal({ isOpen, onClose }: Props) {
                 </div>
 
                 {/* Credits Display */}
-                <div className="p-6 bg-black/40 text-center border-b border-white/5">
-                    <span className="text-gray-400 text-xs font-bold uppercase tracking-widest">Premium Credits</span>
+                <div className="p-6 bg-black/40 text-center border-b border-white/5 relative">
+                    {showGems && (
+                        <div className="absolute top-2 right-2 flex items-center gap-1 text-purple-400 text-xs font-bold">
+                            <span>{gems}</span> 💎
+                        </div>
+                    )}
+                    <span className="text-gray-400 text-xs font-bold uppercase tracking-widest">Tickets</span>
                     <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-600 font-mono mt-2 drop-shadow-sm">
-                        {credits.toLocaleString()} <span className="text-sm font-bold text-yellow-600">CR</span>
+                        {tickets.toLocaleString()} <span className="text-sm font-bold text-yellow-600">🎫</span>
                     </div>
                 </div>
 
@@ -73,7 +80,7 @@ export function PremiumShopModal({ isOpen, onClose }: Props) {
                     {(Object.keys(UPGRADE_LABELS) as Array<'dps' | 'gold' | 'auto'>).map((key) => {
                         const info = UPGRADE_LABELS[key];
                         const { level, cost, nextEffect } = getUpgradeInfo(key);
-                        const canAfford = credits >= cost;
+                        const canAfford = tickets >= cost;
 
                         return (
                             <div key={key} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 hover:border-yellow-500/30 transition-all group">

@@ -10,6 +10,9 @@ export function MiningPanel() {
     const runMine = useFlowStore((state) => state.runMine);
     const premiumUpgrades = useFlowStore((state) => state.premiumUpgrades);
 
+    // Gems Visiblity
+    const showGems = import.meta.env.VITE_SHOW_GEMS === 'true';
+
     const [now, setNow] = useState(Date.now());
     const [isShopOpen, setShopOpen] = useState(false);
 
@@ -78,17 +81,24 @@ export function MiningPanel() {
                 <h3 className="text-xs font-bold uppercase text-gray-400">
                     ⛏️ Stage {mineState.stageId}
                 </h3>
-                <div className="flex items-center gap-2">
-                    <span className="text-yellow-500 text-xs font-bold animate-pulse">
-                        {mineState.premiumCredits} CR
-                    </span>
-                    <button
-                        onClick={() => setShopOpen(true)}
-                        className="p-1 rounded bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600 hover:text-white transition-colors border border-yellow-600/30"
-                        title="Premium Shop"
-                    >
-                        <ShoppingCart className="h-3 w-3" />
-                    </button>
+                <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-2">
+                        {showGems && (
+                            <span className="text-purple-400 text-xs font-bold">
+                                {mineState.gems} 💎
+                            </span>
+                        )}
+                        <span className="text-yellow-500 text-xs font-bold animate-pulse">
+                            {mineState.tickets} 🎫
+                        </span>
+                        <button
+                            onClick={() => setShopOpen(true)}
+                            className="p-1 rounded bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600 hover:text-white transition-colors border border-yellow-600/30"
+                            title="Premium Shop"
+                        >
+                            <ShoppingCart className="h-3 w-3" />
+                        </button>
+                    </div>
                 </div>
             </div>
 

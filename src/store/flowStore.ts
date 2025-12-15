@@ -25,40 +25,20 @@ import { BigNum, fromNumber, add, sub, cmp, formatBigNum } from '@/lib/bigNum';
 export interface MineState {
     rockHp: BigNum;
     rockMaxHp: BigNum;
-    rockTier: number; // Formerly rockLevel
+    rockTier: number;
     gold: BigNum;
     lastTs: number;
-    // Stage Logic
     stageId: number;
     killsInStage: number;
     stageGoal: number;
-    premiumCredits: number;
+    tickets: number; // Formerly premiumCredits (Earned)
+    gems: number;   // New Premium Currency
 }
 
 const UPGRADE_CONFIG = {
-    // Mission 15-C: Shop Balance (Hardcore)
-    // 1. Node Limit: Cost 50, x2, +1
-    nodeLimit: {
-        baseCost: 50,
-        mult: 2,
-        baseVal: BALANCE_CONFIG.BASE_MAX_NODES,
-        inc: 1 // +1 Node
-    },
-    // 2. Gas Unit: Cost 80, x2, +5
-    maxGas: {
-        baseCost: 80,
-        mult: 2,
-        baseVal: BALANCE_CONFIG.BASE_MAX_GAS,
-        inc: 5 // +5 Gas
-    },
-    // 3. AutoRun: Cost 100, x2, -1 minute
-    tickSpeed: {
-        baseCost: 100,
-        mult: 2,
-        baseVal: BALANCE_CONFIG.BASE_AUTORUN_INTERVAL_MS,
-        dec: 60 * 1000, // -1 Minute
-        min: 60 * 1000  // Cap at 1m minimum
-    },
+    nodeLimit: { baseCost: 50, mult: 2, baseVal: BALANCE_CONFIG.BASE_MAX_NODES, inc: 1 },
+    maxGas: { baseCost: 80, mult: 2, baseVal: BALANCE_CONFIG.BASE_MAX_GAS, inc: 5 },
+    tickSpeed: { baseCost: 100, mult: 2, baseVal: BALANCE_CONFIG.BASE_AUTORUN_INTERVAL_MS, dec: 60 * 1000, min: 60 * 1000 },
 };
 
 interface FlowState {
@@ -88,13 +68,13 @@ interface FlowState {
     loadBlueprint: (blueprint: ProjectBlueprint) => void;
     setViewport: (viewport: Viewport) => void;
 
-    // Inventory State (Mission 11-E)
+    // Inventory State
     isInventoryOpen: boolean;
     setInventoryOpen: (isOpen: boolean) => void;
-    inventoryTrigger: number; // Increment to signal refresh
+    inventoryTrigger: number;
     refreshInventory: () => void;
 
-    // Mission State (Mission 11-F)
+    // Mission State
     isMissionOpen: boolean;
     setMissionOpen: (isOpen: boolean) => void;
     missions: Array<{
@@ -106,12 +86,11 @@ interface FlowState {
     }>;
     setMissions: (missions: any[]) => void;
 
-    // Help State (Mission 11-H)
+    // Help State
     isHelpOpen: boolean;
     setHelpOpen: (isOpen: boolean) => void;
 
-    // Result State (Mission 12-A)
-    // Mission 12-A: Result Card
+    // Result State
     isResultOpen: boolean;
     setResultOpen: (isOpen: boolean) => void;
     lastExecutionResult: any;
@@ -160,7 +139,7 @@ interface FlowState {
     };
     buyPremiumUpgrade: (type: 'dps' | 'gold' | 'auto') => void;
 
-    // Undo/Redo (Mission 12-B)
+    // Undo/Redo
     undo: () => void;
     redo: () => void;
     takeSnapshot: () => void;
@@ -183,13 +162,12 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
 
     takeSnapshot: () => {
         set((state) => {
-            // Limit history to 30
             const newPast = [...state.past, { nodes: state.nodes, edges: state.edges }];
             if (newPast.length > 30) newPast.shift();
 
             return {
                 past: newPast,
-                future: [] // Clear future on new action
+                future: []
             };
         });
     },
@@ -199,7 +177,7 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
             if (state.past.length === 0) return {};
 
             const previous = state.past[state.past.length - 1];
-            const newPast = state.past.slice(0, -1);
+            const newPast = state.past.slice(0, state.past.length - 1);
 
             return {
                 past: newPast,
@@ -226,6 +204,161 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
         });
     },
 
+    clearLogs: () => set({ executionLogs: [] }),
+
+    onNodesChange: (changes) => {
+        set({
+            nodes: applyNodeChanges(changes, get().nodes) as AppNode[],
+        });
+    },
+    onEdgesChange: (changes) => {
+        set({
+            edges: applyEdgeChanges(changes, get().edges),
+        });
+    },
+    onConnect: (connection) => {
+        const { edges } = get();
+        // Prevent duplicate connections
+        if (edges.some((e) => e.source === connection.source && e.target === connection.target)) {
+            return;
+        }
+        set({
+            edges: addEdge(connection, edges),
+        });
+        get().takeSnapshot();
+    },
+    addNode: (node) => {
+        const state = get();
+        const { upgrades, nodes } = state;
+
+        // Check Limit
+        const limitConfig = UPGRADE_CONFIG.nodeLimit;
+        const maxNodes = limitConfig.baseVal + (upgrades.nodeLimit * limitConfig.inc);
+
+        if (nodes.length >= maxNodes) {
+            set({
+                executionLogs: [...state.executionLogs, {
+                    nodeId: 'SYS',
+                    nodeKind: 'system',
+                    timestamp: Date.now(),
+                    gasUsed: 0,
+                    error: `[LIMIT] Cannot add node. Limit: ${maxNodes} (Upgrade in Shop)`
+                }]
+            });
+            return;
+        }
+
+        set({ nodes: nodes.concat(node) });
+        get().takeSnapshot();
+    },
+    setNodes: (nodes) => set({ nodes }),
+
+    runGraph: async () => {
+        const { nodes, edges, executionMode, upgrades, credits } = get();
+        set({ isRunning: true });
+
+        // Calculate Max Gas
+        const gasConfig = UPGRADE_CONFIG.maxGas;
+        const maxGas = gasConfig.baseVal + (upgrades.maxGas * gasConfig.inc);
+
+        if (executionMode === 'local') {
+            await executeBlueprint(
+                { nodes, edges },
+                (log) => set((s) => ({ executionLogs: [...s.executionLogs, log] })),
+                (nodeId, status) => get().setNodeStatus(nodeId, status),
+                (nodeId) => {
+                    // Start Node Callback? Not used yet but available
+                },
+                maxGas,
+                credits,
+                (creditsDelta) => {
+                    // Apply credit cost (deduct) or refund
+                    const current = get().credits;
+                    const next = add(current, fromNumber(creditsDelta)); // Delta can be negative
+                    set({ credits: next });
+                }
+            );
+        } else {
+            const logs = await executeRemote({ nodes, edges });
+            set((s) => ({ executionLogs: [...s.executionLogs, ...logs] }));
+        }
+
+        set({ isRunning: false });
+    },
+
+    pendingConnection: null,
+    onHandleClick: (nodeId, handleId, type) => {
+        const { pendingConnection, onConnect, executionLogs } = get();
+
+        if (!pendingConnection) {
+            set({ pendingConnection: { nodeId, handleId, type } });
+            // Optional: Log selection
+            return;
+        }
+
+        if (pendingConnection.nodeId === nodeId) {
+            set({ pendingConnection: null }); // Cancel if clicked same node
+            return;
+        }
+
+        if (pendingConnection.type === type) {
+            set({
+                pendingConnection: { nodeId, handleId, type }, // Switch selection if same type
+                executionLogs: [...executionLogs, {
+                    nodeId: 'UI',
+                    nodeKind: 'system',
+                    timestamp: Date.now(),
+                    gasUsed: 0,
+                    error: `[Connect] Switched selection source/target`
+                }]
+            });
+            return;
+        }
+
+        // Valid connection pair
+        const source = pendingConnection.type === 'source' ? pendingConnection : { nodeId, handleId };
+        const target = pendingConnection.type === 'target' ? pendingConnection : { nodeId, handleId };
+
+        if (!source.handleId || !target.handleId) return;
+
+        onConnect({
+            source: source.nodeId,
+            sourceHandle: source.handleId,
+            target: target.nodeId,
+            targetHandle: target.handleId,
+            id: `e-${source.nodeId}-${target.nodeId}-${Date.now()}`
+        });
+
+        set({ pendingConnection: null });
+    },
+    onPaneClick: () => set({ pendingConnection: null }),
+
+    // Blueprint Storage
+    toBlueprint: () => {
+        const { nodes, edges } = get();
+        return {
+            nodes,
+            edges,
+            version: CURRENT_BLUEPRINT_VERSION,
+            meta: {
+                name: 'Auto-Save',
+                updatedAt: Date.now()
+            }
+        };
+    },
+    loadBlueprint: (bp) => {
+        set({
+            nodes: bp.nodes,
+            edges: bp.edges,
+            executionLogs: [],
+            past: [],
+            future: []
+        });
+    },
+
+    // Viewport State (Managed by ReactFlow, but we can store it slightly)
+    setViewport: (vp) => { /* Helper if needed for save/load viewport */ },
+
     // Inventory Defaults
     isInventoryOpen: false,
     setInventoryOpen: (isOpen) => set({ isInventoryOpen: isOpen }),
@@ -242,51 +375,47 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     isHelpOpen: false,
     setHelpOpen: (isOpen) => set({ isHelpOpen: isOpen }),
 
-    // Result Card State (Mission 12-A)
+    // Result Card State
     isResultOpen: false,
     setResultOpen: (isOpen) => set({ isResultOpen: isOpen }),
     lastExecutionResult: null,
     setLastExecutionResult: (result) => set({ lastExecutionResult: result }),
 
-    // Mission 13: Credits & AutoRun
+    // Credits & AutoRun
     credits: fromNumber(0),
     setCredits: (credits) => set({ credits }),
     isAutoRun: false,
     toggleAutoRun: () => set((state) => ({ isAutoRun: !state.isAutoRun })),
     setAutoRun: (active: boolean) => set({ isAutoRun: active }),
 
-    // Mission 13: Shop & Upgrades
+    // Shop & Upgrades
     isShopOpen: false,
     setShopOpen: (isOpen) => set({ isShopOpen: isOpen }),
-    upgrades: { maxGas: 0, tickSpeed: 0, nodeLimit: 0 }, // Initial state, persist will load
+    upgrades: { maxGas: 0, tickSpeed: 0, nodeLimit: 0 },
     buyUpgrade: (type) => {
         const state = get();
         const level = state.upgrades[type];
 
-        // Config definitions (moved inside to avoid scope issues or redefined)
         const config = UPGRADE_CONFIG[type];
         const costVal = Math.floor(config.baseCost * Math.pow(config.mult, level));
         const cost = fromNumber(costVal);
 
-        if (cmp(state.credits, cost) >= 0) { // credits >= cost
-            // Limit check for TickSpeed
+        if (cmp(state.credits, cost) >= 0) {
             if (type === 'tickSpeed') {
                 const tsConfig = UPGRADE_CONFIG.tickSpeed;
                 const newSpeed = tsConfig.baseVal - ((level + 1) * tsConfig.dec);
                 if (newSpeed < tsConfig.min) {
                     const currentSpeed = tsConfig.baseVal - (level * tsConfig.dec);
-                    if (currentSpeed <= tsConfig.min) {
-                        set({
-                            executionLogs: [...state.executionLogs, {
-                                nodeId: 'SHOP',
-                                nodeKind: 'system',
-                                timestamp: Date.now(),
-                                gasUsed: 0,
-                                error: `[SHOP] Tick Speed is already at minimum (${tsConfig.min / 1000}s)`
-                            }]
-                        });
-                        return;
-                    }
+                    set({
+                        executionLogs: [...state.executionLogs, {
+                            nodeId: 'SHOP',
+                            nodeKind: 'system',
+                            timestamp: Date.now(),
+                            gasUsed: 0,
+                            error: `[SHOP] Max Speed Reached`
+                        }]
+                    });
+                    return;
                 }
             }
 
@@ -311,13 +440,13 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
                     nodeKind: 'system',
                     timestamp: Date.now(),
                     gasUsed: 0,
-                    error: `[SHOP] Not enough credits! Need ${formatBigNum(cost)}`
+                    error: `[SHOP] Not enough credits!`
                 }]
             });
         }
     },
 
-    // Mission API-UI-1: Text Game
+    // Text Game State
     textState: {
         lastInput: '',
         lastOutput: 'Welcome to the system.',
@@ -326,19 +455,17 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     runText: async (inputText: string) => {
         const { textState, executionLogs } = get();
 
-        // 1. Optimistic Log (User Input)
         set({
             executionLogs: [...executionLogs, {
                 nodeId: 'USER',
-                nodeKind: 'trigger', // Green color
+                nodeKind: 'trigger',
                 timestamp: Date.now(),
                 gasUsed: 0,
-                error: `> ${inputText}` // Convention for input
+                error: `> ${inputText}`
             }]
         });
 
         try {
-            // 2. API Call
             const response = await fetch('/api/run-text', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -348,22 +475,16 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
             if (!response.ok) throw new Error(`API Error: ${response.status}`);
 
             const data = await response.json();
-            // Expected: { lines: string[], nextState: string, rewards: [] }
-
-            // 3. Process Response
             const lines = data.lines || [];
             const nextState = data.nextState || textState;
 
-            // Log each line
             const newLogs = lines.map((line: string) => ({
                 nodeId: 'GAME',
-                nodeKind: 'action', // Blue color
+                nodeKind: 'action',
                 timestamp: Date.now(),
                 gasUsed: 0,
-                error: line // Using error field for message text as per existing Terminal logic
+                error: line
             }));
-
-            // TODO: Handle rewards if present
 
             set((state) => ({
                 textState: nextState,
@@ -383,7 +504,7 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
         }
     },
 
-    // Mission API-UI-MINE-1: Mining Implementation
+    // Mining Implementation
     mineState: {
         stageId: 1,
         killsInStage: 0,
@@ -392,31 +513,134 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
         rockHp: fromNumber(100),
         rockMaxHp: fromNumber(100),
         gold: fromNumber(0),
-        premiumCredits: 0,
+        tickets: 0,
+        gems: 0,
         lastTs: Date.now()
     },
     isMiningAuto: false,
     toggleMiningAuto: () => set((state) => ({ isMiningAuto: !state.isMiningAuto })),
+    runMine: async (elapsedSec: number = 0) => {
+        const state = get();
+        const { mineState, nodes, upgrades, premiumUpgrades } = state;
 
-    // Mission 14-A: Node Highlight
+        const loadout = compileBlueprintToLoadout(nodes, upgrades.nodeLimit);
+
+        const premDpsMul = Math.pow(1.15, premiumUpgrades.dpsLvl);
+        const premGoldBonus = 10 * premiumUpgrades.goldLvl;
+
+        // Quick scaling for BigNum: 
+        const scaledDps = { ...loadout.dps, m: loadout.dps.m * premDpsMul };
+
+        const payload = {
+            elapsedSec,
+            state: mineState,
+            loadout: {
+                ...loadout,
+                dps: scaledDps,
+            },
+            premiumBonuses: {
+                goldPct: premGoldBonus
+            }
+        };
+
+        try {
+            const response = await fetch('/api/mine', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (!data.ok) {
+                set((state) => ({
+                    executionLogs: [...state.executionLogs, {
+                        nodeId: 'MINE',
+                        nodeKind: 'system',
+                        timestamp: Date.now(),
+                        gasUsed: 0,
+                        error: `[Mine Failed] ${data.error || 'Server Required'}`
+                    }],
+                    isMiningAuto: false
+                }));
+                return;
+            }
+
+            // Success Updates
+            const lines = data.lines || [];
+
+            const rawNext = data.nextState || {};
+            const toBN = (val: any) => (val && typeof val === 'object' && 'm' in val) ? val : fromNumber(val || 0);
+
+            // Map tickets. If not present, fallback to premiumCredits (legacy)
+            const nextTickets = rawNext.tickets !== undefined ? rawNext.tickets : (rawNext.premiumCredits || mineState.tickets);
+
+            const nextState: MineState = {
+                rockHp: toBN(rawNext.rockHp),
+                rockMaxHp: toBN(rawNext.rockMaxHp),
+                rockTier: rawNext.rockTier || mineState.rockTier,
+                gold: toBN(rawNext.gold),
+                lastTs: Date.now(),
+                stageId: rawNext.stageId || mineState.stageId,
+                killsInStage: rawNext.killsInStage || mineState.killsInStage,
+                stageGoal: rawNext.stageGoal || mineState.stageGoal,
+                tickets: nextTickets,
+                gems: rawNext.gems || mineState.gems || 0
+            };
+
+            const rewards = data.rewards || {};
+            // If backend sends 'premiumCreditsGained', treat as tickets
+            const ticketsGained = rewards.ticketsGained || rewards.premiumCreditsGained || 0;
+
+            if (ticketsGained > 0) {
+                lines.push(`[REWARD] +${ticketsGained} Tickets!`);
+            }
+
+            set((state) => ({
+                mineState: nextState,
+                executionLogs: [
+                    ...state.executionLogs,
+                    ...lines.map((l: string) => ({
+                        nodeId: 'MINE',
+                        nodeKind: 'system',
+                        timestamp: Date.now(),
+                        gasUsed: 0,
+                        error: l
+                    }))
+                ]
+            }));
+
+        } catch (e: any) {
+            set((state) => ({
+                executionLogs: [...state.executionLogs, {
+                    nodeId: 'MINE',
+                    nodeKind: 'system',
+                    timestamp: Date.now(),
+                    gasUsed: 0,
+                    error: `[Network Error] ${e.message}`
+                }],
+                isMiningAuto: false
+            }));
+        }
+    },
+
+    // Node Exec Status (Mission 14-A)
     nodeExecStatus: {},
     setNodeStatus: (nodeId, status) => set((state) => ({
         nodeExecStatus: { ...state.nodeExecStatus, [nodeId]: status }
     })),
 
-    // Mission 19-C: Premium Upgrades
+    // Premium Upgrades (Mission 19-C)
     premiumUpgrades: {
         dpsLvl: 0,
         goldLvl: 0,
         autoLvl: 0
     },
-
-    buyPremiumUpgrade: (type: 'dps' | 'gold' | 'auto') => {
+    buyPremiumUpgrade: (type) => {
         const state = get();
         const upgrades = state.premiumUpgrades;
-        const credits = state.mineState.premiumCredits;
+        const currentTickets = state.mineState.tickets;
 
-        // Cost Formulas
         let cost = 0;
         let nextLvl = 0;
 
@@ -431,11 +655,11 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
             cost = Math.ceil(5 * Math.pow(2.0, upgrades.autoLvl));
         }
 
-        if (credits >= cost) {
+        if (currentTickets >= cost) {
             set({
                 mineState: {
                     ...state.mineState,
-                    premiumCredits: credits - cost
+                    tickets: currentTickets - cost
                 },
                 premiumUpgrades: {
                     ...upgrades,
@@ -448,376 +672,14 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
                         nodeKind: 'system',
                         timestamp: Date.now(),
                         gasUsed: 0,
-                        error: `[SHOP] Upgrade ${type} to Lv.${nextLvl} (Cost: ${cost} CR)`
+                        error: `[SHOP] Upgrade ${type} to Lv.${nextLvl} (Cost: ${cost} Tickets)`
                     }
                 ]
             });
         }
-    },
-
-    runMine: async (elapsedSec: number = 0) => {
-        const state = get();
-        const { mineState, nodes, upgrades, premiumUpgrades } = state;
-
-        // Mission 15-B: Dynamic Loadout Compilation
-        const loadout = compileBlueprintToLoadout(nodes, upgrades.nodeLimit);
-
-        // Mission 19-C: Apply Premium Multipliers
-        const premDpsMul = Math.pow(1.15, premiumUpgrades.dpsLvl);
-        const premGoldBonus = 10 * premiumUpgrades.goldLvl;
-
-        // Request Body
-        // Handle BigNum math for DPS
-        // premDpsMul is a number float (e.g. 1.15). BigNum mul usually takes BigNum.
-        // We'll trust backend to handle it or convert here?
-        // lib/bigNum `mul` takes (BigNum, BigNum).
-        // Let's assume we maintain structure and let backend apply math?
-        // OR execute math here.
-        // dps is { m, e }. 
-        // We can do manual calc for float scalar: m * scalar, then normalize.
-        // Actually, let's just send the multiplier in `premiumBonuses` and let the server/API handle the math if possible.
-        // BUT the prompt said "프론트는 elapsedSec 계산 + nextState 반영만", implying the calculation happens elsewhere?
-        // Actually the previous prompt "MISSION 15-B" said "Compile Loadout".
-        // Let's try to do it here for "optimistic" local run logic if we were running completely local.
-        // But `runMine` calls API. The API might use `loadout.dps`.
-        // If I change `loadout.dps` here, I should use BigNum logic.
-
-        // Quick scaling for BigNum: 
-        // newDps = dps * mul
-        const scaledDps = { ...loadout.dps, m: loadout.dps.m * premDpsMul };
-        // We don't normalize here strictly, but it usually works for JSON transport.
-
-        const payload = {
-            elapsedSec,
-            state: mineState,
-            loadout: {
-                ...loadout,
-                dps: scaledDps, // Applied mul
-                // clickDps removed
-            },
-            premiumBonuses: {
-                goldPct: premGoldBonus
-            }
-        };
-
-        try {
-            const response = await fetch('/api/mine', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json(); // { ok, lines, rewards, nextState, error }
-
-            if (!data.ok) {
-                // Handle "Server Required" or Errors
-                set((state) => ({
-                    executionLogs: [...state.executionLogs, {
-                        nodeId: 'MINE',
-                        nodeKind: 'system',
-                        timestamp: Date.now(),
-                        gasUsed: 0,
-                        error: `[Mine Failed] ${data.error || 'Server Required'}`
-                    }],
-                    isMiningAuto: false // Stop auto on error
-                }));
-                return;
-            }
-
-            // Success Updates
-            const lines = data.lines || [];
-
-            // Next State from API. API might send Numbers or BigNum objects.
-            // If API sends numbers (legacy), we convert. If it sends {m,e}, we use.
-            const rawNext = data.nextState || {};
-            // Helper to safe convert
-            const toBN = (val: any) => (val && typeof val === 'object' && 'm' in val) ? val : fromNumber(val || 0);
-
-            const nextState: MineState = {
-                rockHp: toBN(rawNext.rockHp),
-                rockMaxHp: toBN(rawNext.rockMaxHp),
-                rockTier: rawNext.rockTier || mineState.rockTier, // Tier Update
-                gold: toBN(rawNext.gold),
-                lastTs: Date.now(),
-                // Stage Updates
-                stageId: rawNext.stageId || mineState.stageId,
-                killsInStage: rawNext.killsInStage || mineState.killsInStage,
-                stageGoal: rawNext.stageGoal || mineState.stageGoal,
-                premiumCredits: rawNext.premiumCredits || mineState.premiumCredits
-            };
-
-            const rewards = data.rewards || {};
-
-            // Handle Credits
-            if (rewards.creditsGained) {
-                // rewards.creditsGained might be number or BigNum
-                const gain = toBN(rewards.creditsGained);
-                const currentCredits = get().credits;
-                set({ credits: add(currentCredits, gain) });
-            }
-
-            set({
-                mineState: nextState,
-                executionLogs: [...get().executionLogs, ...lines.map((line: string) => ({
-                    nodeId: 'MINE',
-                    nodeKind: 'action',
-                    timestamp: Date.now(),
-                    gasUsed: 0,
-                    output: line
-                }))].slice(-50) // Keep last 50
-            });
-
-        } catch (err: any) {
-            // Mission 14-B: Safe Fail (No Console Throw)
-            set((state) => ({
-                executionLogs: [...state.executionLogs, {
-                    nodeId: 'MINE',
-                    nodeKind: 'system',
-                    timestamp: Date.now(),
-                    gasUsed: 0,
-                    error: `[Network Error] API unreachable (Check Server)`
-                }],
-                isMiningAuto: false
-            }));
-        }
-    },
-
-
-    onPaneClick: () => {
-        set({ pendingConnection: null });
-    },
-
-    onNodesChange: (changes) => {
-        // Snapshot triggers
-        const isStructuralChange = changes.some(c => c.type === 'remove' || c.type === 'add' || c.type === 'replace');
-        if (isStructuralChange) {
-            get().takeSnapshot();
-        }
-
-        set({
-            nodes: applyNodeChanges(changes, get().nodes) as AppNode[],
-        });
-    },
-    onEdgesChange: (changes) => {
-        const isStructuralChange = changes.some(c => c.type === 'remove' || c.type === 'add' || c.type === 'replace');
-        if (isStructuralChange) {
-            get().takeSnapshot();
-        }
-
-        set({
-            edges: applyEdgeChanges(changes, get().edges),
-        });
-    },
-    onConnect: (connection) => {
-        get().takeSnapshot();
-        set({
-            edges: addEdge({ ...connection, animated: true }, get().edges),
-            pendingConnection: null, // Reset on drag connect too
-        });
-    },
-    onHandleClick: (nodeId, handleId, type) => {
-        const { pendingConnection, edges } = get();
-        const action = { nodeId, handleId, type };
-
-        // Use pure logic for state transition
-        const result = deriveConnectionState(pendingConnection, action);
-
-        if (result.status === 'pending') {
-            set({ pendingConnection: result.payload });
-        } else if (result.status === 'cancelled') {
-            set({ pendingConnection: null });
-        } else if (result.status === 'completed') {
-            get().takeSnapshot();
-            const { source, target } = result.payload;
-            const connection = {
-                source: source.nodeId,
-                sourceHandle: source.handleId,
-                target: target.nodeId,
-                targetHandle: target.handleId,
-                animated: true,
-            };
-            set({
-                edges: addEdge(connection as Connection, edges),
-                pendingConnection: null,
-            });
-        }
-    },
-    addNode: (node) => {
-        const { nodes, upgrades } = get();
-        // Node Limit Check
-        const limitConfig = UPGRADE_CONFIG.nodeLimit;
-        const maxNodes = limitConfig.baseVal + (upgrades.nodeLimit * limitConfig.inc);
-
-        if (nodes.length >= maxNodes) {
-            set({
-                executionLogs: [...get().executionLogs, {
-                    nodeId: 'system',
-                    nodeKind: 'system',
-                    timestamp: Date.now(),
-                    gasUsed: 0,
-                    error: `[LIMIT] Node limit reached (${maxNodes}). Upgrade in Shop!`
-                }]
-            });
-            return;
-        }
-
-        get().takeSnapshot();
-        set({
-            nodes: get().nodes.concat(node),
-        });
-    },
-    setNodes: (nodes) => {
-        // Warning: setNodes might overwrite everything, potentially bypassing snapshot if used directly.
-        // For now, we assume direct setNodes is for loading or initialization where snapshot might not be desired
-        // OR we should snapshot? For 'Load', we usually clear history.
-        set({ nodes });
-    },
-
-    runGraph: async () => {
-        const { nodes, edges } = get();
-        if (get().isRunning) return;
-
-        set({ isRunning: true, executionLogs: [] });
-
-        // Map to Blueprint
-        // Note: We need to map 'type' to 'kind' strictly.
-        // Assuming AppNode['type'] matches NodeKind for now, but explicit is better.
-        const blueprint: Blueprint = {
-            nodes: nodes.map(n => ({
-                id: n.id,
-                kind: n.type as 'trigger' | 'action' | 'variable',
-            })),
-            edges: edges.map(e => ({
-                id: e.id,
-                source: e.source,
-                target: e.target,
-            })),
-        };
-
-        try {
-            const { executionMode, upgrades } = get();
-
-            // Max Gas Calculation
-            const gasConfig = UPGRADE_CONFIG.maxGas;
-            const maxGas = gasConfig.baseVal + (upgrades.maxGas * gasConfig.inc);
-            const config = {
-                maxGas,
-                // Mission 14-A: Visual Execution
-                stepDelayMs: 120, // Visible delay
-                onNodeExecution: (nodeId: string, status: 'running' | 'success' | 'error') => {
-                    get().setNodeStatus(nodeId, status);
-                    // Auto-reset success to idle after a delay for "flash" effect? 
-                    // Or keep it green? Prompt says "300ms 후 idle 복귀".
-                    if (status === 'success') {
-                        setTimeout(() => {
-                            get().setNodeStatus(nodeId, 'idle');
-                        }, 300);
-                    }
-                    if (status === 'running') {
-                        // Ensure previous success is cleared? Or just running.
-                    }
-                }
-            };
-
-            let result;
-            if (executionMode === 'remote') {
-                result = await executeRemote(blueprint, config);
-            } else {
-                result = await executeBlueprint(blueprint, config);
-
-                // Mission 13: Handle Credits
-                if (result.creditsDelta !== undefined) {
-                    const currentCredits = get().credits;
-                    const newTotal = add(currentCredits, fromNumber(result.creditsDelta));
-
-                    if (get().isAutoRun && newTotal.m === 0 && newTotal.e === 0) {
-                        set({ isAutoRun: false });
-                        // Add bankruptcy log
-                        result.logs.push({
-                            nodeId: 'system',
-                            nodeKind: 'system',
-                            timestamp: Date.now(),
-                            gasUsed: 0,
-                            error: 'BANKRUPTCY! Auto Run stopped.'
-                        });
-                    } else {
-                        get().setCredits(newTotal);
-                    }
-                }
-            }
-
-            set({ executionLogs: result.logs });
-        } catch (e: any) {
-            set({
-                executionLogs: [{
-                    nodeId: 'system',
-                    nodeKind: 'system',
-                    timestamp: Date.now(),
-                    gasUsed: 0,
-                    error: e.message || 'Unknown error'
-                }]
-            });
-        } finally {
-            set({ isRunning: false });
-        }
-    },
-
-    clearLogs: () => set({ executionLogs: [] }),
-
-    // Storage Actions
-    toBlueprint: () => {
-        const { nodes, edges } = get();
-        // Viewport handling would typically require a separate hook or accessing reactFlowInstance.
-        // For now we will return a default viewport or need to track it.
-        // Zustand alone doesn't track viewport unless we sync it. 
-        // We will assume 0,0,1 for now or user should sync it via onMoveEnd.
-        // Let's rely on ReactFlow's 'useReactFlow' in components for viewport getting, 
-        // OR simply store it here if we want.
-        // Actually, the best place to get viewport is component level when saving.
-        // BUT, `get` here doesn't have it.
-        // Let's return the part we know: nodes and edges.
-
-        return {
-            meta: {
-                version: CURRENT_BLUEPRINT_VERSION,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                name: 'Untitled Project',
-            },
-            graph: {
-                nodes,
-                edges,
-                viewport: { x: 0, y: 0, zoom: 1 } // Placeholder, will be overridden by component
-            },
-            config: { maxGas: 100 }
-        };
-    },
-
-    loadBlueprint: (blueprint: ProjectBlueprint) => {
-        // Validation check could go here
-        if (blueprint.meta.version !== CURRENT_BLUEPRINT_VERSION) {
-            console.warn('Version mismatch, attempting load anyway');
-        }
-        set({
-            nodes: blueprint.graph.nodes,
-            edges: blueprint.graph.edges,
-            past: [], // Clear history on load
-            future: []
-            // setViewport needs to be handled by component
-        });
-    },
-
-    setViewport: (_viewport) => {
-        // Only if we were tracking it in store, but mostly we let ReactFlow handle it
     }
+
 }), {
-    name: 'n8ngame-flow-store',
-    partialize: (state) => ({
-        nodes: state.nodes,
-        edges: state.edges,
-        credits: state.credits,
-        upgrades: state.upgrades,
-        mineState: state.mineState,
-        isMiningAuto: state.isMiningAuto
-    })
+    name: 'flow-storage',
+    version: 3, // Increased version to maybe trigger reset if schemas heavily diverge? Or just leave it.
 }));
