@@ -82,13 +82,20 @@ export function SlotCard({ slotType, item, isLocked, onClick }: SlotCardProps) {
             {/* Header: Icon & Level */}
             <div className="flex items-start justify-between">
                 <div className={cn(
-                    "w-10 h-10 rounded-lg flex items-center justify-center",
+                    "w-10 h-10 rounded-lg flex items-center justify-center relative",
                     item.rarity === 'legendary' ? "bg-yellow-500/20 text-yellow-500" :
                         item.rarity === 'epic' ? "bg-purple-500/20 text-purple-500" :
                             item.rarity === 'rare' ? "bg-blue-500/20 text-blue-500" :
                                 "bg-gray-500/20 text-gray-400"
                 )}>
                     <Icon className="w-6 h-6 fill-current" />
+
+                    {/* Mission 22-D: n8n Badge */}
+                    <div className="absolute -bottom-2 -right-6 scale-75 origin-left px-1.5 py-0.5 bg-[#FF6D5A] text-black text-[9px] font-bold rounded-full shadow-lg z-10 border border-white/20 whitespace-nowrap">
+                        {slotType === 'TRIGGER' ? 'Webhook' :
+                            slotType === 'DAMAGE' ? 'Function' :
+                                slotType === 'GOLD' ? 'Set' : 'Switch'}
+                    </div>
                 </div>
                 <div className="flex flex-col items-end">
                     <span className="text-[10px] text-gray-400 font-bold uppercase">{item.rarity}</span>

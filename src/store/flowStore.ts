@@ -42,6 +42,15 @@ const UPGRADE_CONFIG = {
 interface FlowState {
     nodes: AppNode[];
     edges: Edge[];
+    // Mission 22-D: n8n Visibility
+    n8nLogs: string[];
+    n8nStatus: 'idle' | 'running' | 'error' | 'ok';
+    lastN8nResult: any;
+    isN8nPanelOpen: boolean;
+    clearN8nLogs: () => void;
+    toggleN8nPanel: () => void;
+
+    // Actions
     onNodesChange: (changes: NodeChange[]) => void;
     onEdgesChange: (changes: EdgeChange[]) => void;
     onConnect: (connection: Connection) => void;
@@ -493,6 +502,15 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
         lastOutput: 'Welcome to the system.',
         isLoading: false
     },
+    // Mission 22-D: n8n Visibility
+    n8nLogs: [],
+    n8nStatus: 'idle',
+    lastN8nResult: null,
+    isN8nPanelOpen: false,
+
+    clearN8nLogs: () => set({ n8nLogs: [] }),
+    toggleN8nPanel: () => set(state => ({ isN8nPanelOpen: !state.isN8nPanelOpen })),
+
     runText: async (inputText: string) => {
         const { textState, executionLogs } = get();
 
@@ -562,33 +580,34 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     toggleMiningAuto: () => set((state) => ({ isMiningAuto: !state.isMiningAuto })),
     runMine: async (elapsedSec: number = 0) => {
         const state = get();
-        const { mineState, nodes, upgrades, premiumUpgrades } = state;
-
-        const loadout = compileBlueprintToLoadout(nodes, upgrades.nodeLimit);
-
-        // Mission 22-B: Slot Loadout Integration
+        // Mission 22-B Logic
         const { useSlotStore } = require('@/store/slotStore');
         const { computeLoadout } = require('@/features/slots/utils');
-
         const { getEquippedItem } = useSlotStore.getState();
+
         const equippedItems = ['TRIGGER', 'DAMAGE', 'GOLD', 'UTILITY'].map(type => getEquippedItem(type));
         const slotLoadoutStats = computeLoadout(equippedItems);
 
-        const premDpsMul = Math.pow(1.15, premiumUpgrades.dpsLvl);
+        // Use slot interval if elapsedSec is 0 (manual run)
+        const actualElapsed = elapsedSec > 0 ? elapsedSec : slotLoadoutStats.intervalSec;
 
-        // Merge Slot Loadout into Logic
-        const finalDps = {
-            m: (loadout.dps.m + slotLoadoutStats.dps) * premDpsMul,
-            e: loadout.dps.e
-        };
+        // Merge Loadout
+        const { nodes, upgrades, premiumUpgrades, mineState } = state;
+        const loadout = compileBlueprintToLoadout(nodes, upgrades.nodeLimit);
+        const premDpsMul = Math.pow(1.15, premiumUpgrades.dpsLvl);
 
         // Merged Loadout for API
         const apiLoadout = {
             ...loadout,
-            dps: finalDps,
+            dps: {
+                m: (loadout.dps.m + slotLoadoutStats.dps) * premDpsMul,
+                e: loadout.dps.e
+            },
             goldBonusPct: (loadout.goldBonusPct || 0) + slotLoadoutStats.goldBonusPct,
             intervalSec: slotLoadoutStats.intervalSec
         };
+
+        set({ n8nStatus: 'running' });
 
         try {
             const res = await fetch('/api/mine', {
@@ -598,30 +617,23 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
                     'Authorization': `Bearer ${localStorage.getItem('sb-access-token')}`
                 },
                 body: JSON.stringify({
-                    elapsedSec,
-                    state: {
-                        rockHp: mineState.rockHp,
-                        gold: mineState.gold,
-                        finalDps
-                    },
+                    elapsedSec: actualElapsed,
+                    state: mineState,
                     loadout: apiLoadout
-                })
+                }),
             });
 
-            if (!res.ok) {
-                set(() => ({ isMiningAuto: false }));
-                return;
-            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
             const data = await res.json();
 
-            if (!data.success && !data.ok && !data.state) {
-                return;
+            if (!data.success && !data.ok && !data.newState) {
+                // Soft fail or just continue
             }
 
             // Success Updates
             const lines = data.lines || [];
-            const rawNext = data.nextState || {};
+            const rawNext = data.newState || {};
             const toBN = (val: any) => (val && typeof val === 'object' && 'm' in val) ? val : fromNumber(val || 0);
 
             // Map tickets.
@@ -637,18 +649,18 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
                 killsInStage: rawNext.killsInStage || mineState.killsInStage,
                 stageGoal: rawNext.stageGoal || mineState.stageGoal,
                 tickets: nextTickets,
-                gems: rawNext.gems || mineState.gems || 0
+                gems: rawNext.gems || mineState.gems,
             };
-
             const rewards = data.rewards || {};
-            const ticketsGained = rewards.ticketsGained || 0;
-
-            if (ticketsGained > 0) {
-                lines.push(`[REWARD] +${ticketsGained} Tickets!`);
-            }
 
             set((state) => ({
                 mineState: nextState,
+                n8nStatus: 'ok',
+                lastN8nResult: data,
+                n8nLogs: [
+                    `[${new Date().toLocaleTimeString()}] Success: +${rewards.gold?.m ? formatBigNum(rewards.gold) : '0'} Gold`,
+                    ...state.n8nLogs
+                ].slice(0, 50),
                 executionLogs: [
                     ...state.executionLogs,
                     ...lines.map((l: string) => ({
@@ -663,6 +675,11 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
 
         } catch (e: any) {
             set((state) => ({
+                n8nStatus: 'error',
+                n8nLogs: [
+                    `[${new Date().toLocaleTimeString()}] Error: ${e.message}`,
+                    ...state.n8nLogs
+                ].slice(0, 50),
                 executionLogs: [...state.executionLogs, {
                     nodeId: 'MINE',
                     nodeKind: 'system',
@@ -735,11 +752,10 @@ export const useFlowStore = create<FlowState>()(persist((set, get) => ({
     version: 4,
     migrate: (persistedState: any, version) => {
         if (version < 4) {
-            // Migration: Move premiumCredits to tickets if exists
             const mineState = persistedState.mineState || {};
             if (mineState.premiumCredits !== undefined && (mineState.tickets === undefined || mineState.tickets === 0)) {
                 mineState.tickets = mineState.premiumCredits;
-                delete mineState.premiumCredits; // Clean up legacy key
+                delete mineState.premiumCredits;
             }
             return {
                 ...persistedState,

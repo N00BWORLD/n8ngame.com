@@ -6,7 +6,7 @@ import { computeLoadout } from '@/features/slots/utils';
 import { formatShort } from '@/lib/format';
 
 export function TopBar() {
-    const { mineState } = useFlowStore();
+    const { mineState, toggleN8nPanel, n8nStatus } = useFlowStore();
     const { getEquippedItem } = useSlotStore();
 
     const equippedItems = ['TRIGGER', 'DAMAGE', 'GOLD', 'UTILITY'].map(type =>
@@ -17,13 +17,18 @@ export function TopBar() {
     return (
         <div className="flex-none h-12 bg-black/80 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-4 z-50">
             {/* Left: Logo/Title */}
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+            <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" onClick={toggleN8nPanel}>
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FF6D5A] to-[#FF4D4D] flex items-center justify-center relative shadow-[0_0_10px_rgba(255,109,90,0.3)]">
                     <Zap className="w-5 h-5 text-white fill-current" />
+                    {/* Status Dot */}
+                    <div className={`absolute - top - 1 - right - 1 w - 2.5 h - 2.5 rounded - full border - 2 border - [#1a1a20] ${n8nStatus === 'running' ? 'bg-yellow-400 animate-pulse' :
+                        n8nStatus === 'error' ? 'bg-red-500' :
+                            n8nStatus === 'ok' ? 'bg-green-500' : 'bg-gray-500'
+                        } `} />
                 </div>
                 <div className="flex flex-col">
                     <span className="font-bold text-white tracking-wider text-sm leading-none">N8N</span>
-                    <span className="text-[10px] text-cyan-400 font-mono leading-none">GAME</span>
+                    <span className="text-[10px] text-[#FF6D5A] font-mono leading-none">CONNECTED</span>
                 </div>
             </div>
 
