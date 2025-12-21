@@ -27,14 +27,10 @@ export function NodeWrapper({ children, id, title, icon, colorClass, selected, e
     return (
         <div
             className={cn(
-                "group relative flex min-w-[150px] flex-col rounded-md border bg-card text-card-foreground shadow-sm transition-all duration-200",
-                selected ? "ring-2 ring-primary" : "border-border",
-                // Existing Execution Status Styles
-                executionStatus === 'running' && "border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.5)] ring-1 ring-cyan-400 animate-pulse",
-                executionStatus === 'success' && "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)] ring-1 ring-green-400 scale-105",
-                executionStatus === 'error' && "border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] ring-1 ring-red-400",
+                "group relative flex min-w-[180px] flex-col rounded-xl border-2 bg-white text-slate-900 shadow-lg transition-all duration-200 overflow-hidden",
+                selected ? "border-blue-500 shadow-blue-500/20" : "border-slate-100",
                 // Mission 23-C: Visual Execution Highlight (Highest Priority)
-                isVisualActive && "border-cyan-400 ring-2 ring-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.8)] scale-105 z-50 transition-all duration-75",
+                isVisualActive && "border-cyan-400 ring-4 ring-cyan-400/30 scale-105 z-50 transition-all duration-75",
                 colorClass
             )}
         >
@@ -42,23 +38,34 @@ export function NodeWrapper({ children, id, title, icon, colorClass, selected, e
             <button
                 onClick={handleDelete}
                 className={cn(
-                    "absolute -top-3 -right-3 z-50 p-1 bg-red-500 text-white rounded-full transition-all shadow-md hover:bg-red-600 focus:outline-none scroll-m-2",
-                    // Mobile: Always visible if selected, otherwise opacity-0 but accessible
-                    // Desktop: group-hover visible
-                    selected ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-0 group-hover:scale-100"
+                    "absolute top-1 right-1 z-[60] p-1.5 bg-slate-50 text-slate-400 rounded-lg transition-all opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 border border-slate-100",
+                    selected && "opacity-100"
                 )}
                 title="Delete Node"
-                aria-label="Delete Node"
             >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
             </button>
-            {/* Mobile Touch Target for Delete (Always visible or larger hit area on mobile? For now, standard button but ensuring z-index) */}
 
-            <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-2 text-sm font-medium">
-                {icon && <span className="h-4 w-4">{icon}</span>}
-                {title}
+            {/* n8n Style Header */}
+            <div className={cn(
+                "flex items-center gap-2.5 px-3 py-2 text-[13px] font-bold text-white",
+                title === 'Trigger' ? "bg-orange-500" :
+                    title === 'Action' ? "bg-blue-600" : "bg-purple-600"
+            )}>
+                {icon && <span className="h-4 w-4 drop-shadow-sm">{icon}</span>}
+                <span className="truncate">{title}</span>
             </div>
-            <div className="p-3 text-xs">
+
+            {/* Execution Status Indicators (Subtle) */}
+            {executionStatus && executionStatus !== 'idle' && (
+                <div className={cn(
+                    "absolute top-2 left-2 w-2 h-2 rounded-full animate-pulse z-50",
+                    executionStatus === 'running' ? "bg-blue-400" :
+                        executionStatus === 'success' ? "bg-green-500" : "bg-red-500"
+                )} />
+            )}
+
+            <div className="p-4 text-xs font-medium text-slate-600 bg-white">
                 {children}
             </div>
         </div>

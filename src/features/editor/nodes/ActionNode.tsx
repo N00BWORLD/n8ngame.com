@@ -3,35 +3,28 @@ import { Zap } from 'lucide-react';
 import { NodeWrapper } from './NodeWrapper';
 import type { AppNode } from '../types';
 import { useFlowStore } from '@/store/flowStore';
-import { cn } from '@/lib/utils';
 
 export function ActionNode({ id, data, selected }: NodeProps<AppNode>) {
     const onHandleClick = useFlowStore((state) => state.onHandleClick);
-    const pendingConnection = useFlowStore((state) => state.pendingConnection);
-    // Mission 14-A: Execution Status
     const executionStatus = useFlowStore((state) => state.nodeExecStatus[id]);
-
-    const isSourcePending = pendingConnection?.nodeId === id && pendingConnection?.type === 'source';
-    // Target doesn't usually glow as pending source, but we could highlight valid targets?
-    // For now, only source glows when it is the pending start.
 
     return (
         <NodeWrapper
             id={id}
             title="Action"
-            icon={<Zap className="h-4 w-4" />}
-            colorClass="border-blue-500/50 hover:border-blue-500"
+            icon={<Zap className="h-4 w-4 fill-white" />}
+            colorClass={selected ? "border-blue-600" : "border-slate-100"}
             selected={selected}
             executionStatus={executionStatus}
         >
             <div className="flex flex-col gap-1">
-                <span className="text-xs">{data.label}</span>
-                <span className="text-[10px] text-muted-foreground">Process data...</span>
+                <span className="text-[11px] font-bold text-slate-700 tracking-tight">{data.label}</span>
+                <p className="text-[10px] text-slate-400">Execute operation</p>
             </div>
             <Handle
                 type="target"
                 position={Position.Top}
-                className="!bg-blue-500"
+                className="!bg-white"
                 onClick={(e) => {
                     e.stopPropagation();
                     onHandleClick(id, null, 'target');
@@ -40,7 +33,7 @@ export function ActionNode({ id, data, selected }: NodeProps<AppNode>) {
             <Handle
                 type="source"
                 position={Position.Bottom}
-                className={cn("!bg-blue-500", isSourcePending && "pending")}
+                className="!bg-white"
                 onClick={(e) => {
                     e.stopPropagation();
                     onHandleClick(id, null, 'source');

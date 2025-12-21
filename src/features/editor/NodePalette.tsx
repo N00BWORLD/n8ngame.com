@@ -2,21 +2,19 @@ import { useReactFlow } from '@xyflow/react';
 import { Play, Zap, Database } from 'lucide-react';
 import type { AppNode } from './types';
 import { useFlowStore } from '@/store/flowStore';
+import { cn } from '@/lib/utils';
 
 const NODE_TYPES = [
-    { type: 'trigger', label: 'Trigger', icon: <Play className="h-3 w-3" />, color: 'text-green-500 bg-green-500/10' },
-    { type: 'action', label: 'Action', icon: <Zap className="h-3 w-3" />, color: 'text-blue-500 bg-blue-500/10' },
-    { type: 'variable', label: 'Variable', icon: <Database className="h-3 w-3" />, color: 'text-orange-500 bg-orange-500/10' },
-    // Mission 13
-    { type: 'generator', label: 'Generator', icon: <Zap className="h-3 w-3" />, color: 'text-yellow-500 bg-yellow-500/10' },
-    { type: 'booster', label: 'Booster', icon: <Zap className="h-3 w-3" />, color: 'text-purple-500 bg-purple-500/10' },
-    { type: 'sink', label: 'Sink', icon: <Zap className="h-3 w-3" />, color: 'text-red-500 bg-red-500/10' },
+    { type: 'trigger', label: 'Trigger', icon: <Play className="h-3 w-3 fill-orange-500" />, color: 'text-orange-600 bg-orange-50 border-orange-100' },
+    { type: 'action', label: 'Action', icon: <Zap className="h-3 w-3 fill-blue-600" />, color: 'text-blue-600 bg-blue-50 border-blue-100' },
+    { type: 'variable', label: 'Variable', icon: <Database className="h-3 w-3 fill-purple-600" />, color: 'text-purple-600 bg-purple-50 border-purple-100' },
+    { type: 'generator', label: 'Generator', icon: <Zap className="h-3 w-3 fill-blue-600" />, color: 'text-blue-600 bg-blue-50 border-blue-100' },
+    { type: 'booster', label: 'Booster', icon: <Zap className="h-3 w-3 fill-purple-600" />, color: 'text-purple-600 bg-purple-50 border-purple-100' },
+    { type: 'sink', label: 'Sink', icon: <Zap className="h-3 w-3 fill-blue-600" />, color: 'text-blue-600 bg-blue-50 border-blue-100' },
 ] as const;
 
 export function NodePalette() {
     const { screenToFlowPosition } = useReactFlow<AppNode>();
-    // Removed unused setNodes hook usage since we use getState inside handler
-    // const setNodes = useFlowStore((state) => state.setNodes);
 
     const addNodeCenter = (type: 'trigger' | 'action' | 'variable' | 'generator' | 'booster' | 'sink', label: string) => {
         const id = `${type}-${Date.now()}`;
@@ -34,16 +32,13 @@ export function NodePalette() {
         };
 
         const { addNode, nodes, setNodes } = useFlowStore.getState();
-        // Deselect others first
         const updatedNodes = nodes.map((n) => ({ ...n, selected: false } as AppNode));
         setNodes(updatedNodes);
-
-        // Add new node
         addNode(newNode);
     };
 
     return (
-        <div className="absolute bottom-4 right-4 sm:bottom-8 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-col sm:flex-row gap-2 rounded-xl sm:rounded-full glass-panel p-2 max-h-[55vh] sm:max-h-none overflow-y-auto sm:overflow-visible overflow-x-hidden sm:overflow-x-auto scrollbar-hide bg-black/90 sm:bg-black/50 border border-white/10">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex gap-2 rounded-full bg-white border border-slate-200 p-1.5 shadow-xl ring-4 ring-black/5 animate-in slide-in-from-bottom-4 duration-300">
             {NODE_TYPES.map((type) => (
                 <button
                     key={type.type}
@@ -53,10 +48,13 @@ export function NodePalette() {
                         event.dataTransfer.effectAllowed = 'move';
                     }}
                     onClick={() => addNodeCenter(type.type, type.label)}
-                    className={`flex items-center gap-2 rounded-lg sm:rounded-full px-4 py-3 sm:px-4 sm:py-2 cyber-button ${type.color} cursor-grab active:cursor-grabbing flex-shrink-0 w-full sm:w-auto transition-all hover:bg-white/5`}
+                    className={cn(
+                        "flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all hover:scale-105 active:scale-95 border",
+                        type.color
+                    )}
                 >
                     {type.icon}
-                    <span className="text-sm font-medium">{type.label}</span>
+                    <span>{type.label}</span>
                 </button>
             ))}
         </div>

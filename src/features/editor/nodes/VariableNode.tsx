@@ -3,33 +3,30 @@ import { Database } from 'lucide-react';
 import { NodeWrapper } from './NodeWrapper';
 import type { AppNode } from '../types';
 import { useFlowStore } from '@/store/flowStore';
-import { cn } from '@/lib/utils';
 
 export function VariableNode({ id, data, selected }: NodeProps<AppNode>) {
     const onHandleClick = useFlowStore((state) => state.onHandleClick);
-    const pendingConnection = useFlowStore((state) => state.pendingConnection);
     const executionStatus = useFlowStore((state) => state.nodeExecStatus[id]);
-
-    const isTargetPending = pendingConnection?.nodeId !== id && pendingConnection?.type === 'source'; // Valid target if source is pending? 
-    // Simplified logic for handles
 
     return (
         <NodeWrapper
             id={id}
             title="Variable"
-            icon={<Database className="h-4 w-4" />}
-            colorClass="border-purple-500/50 hover:border-purple-500"
+            icon={<Database className="h-4 w-4 fill-white" />}
+            colorClass={selected ? "border-purple-600" : "border-slate-100"}
             selected={selected}
             executionStatus={executionStatus}
         >
             <div className="flex flex-col gap-1">
-                <span className="text-xs">{data.label}</span>
-                <code className="rounded bg-muted px-1 py-0.5 text-[10px]">count = 0</code>
+                <span className="text-[11px] font-bold text-slate-700 tracking-tight">{data.label}</span>
+                <code className="mt-1 rounded bg-slate-50 px-1.5 py-0.5 text-[10px] text-purple-600 font-mono border border-purple-100 w-fit">
+                    val = 0
+                </code>
             </div>
             <Handle
                 type="target"
                 position={Position.Top}
-                className="!bg-orange-500"
+                className="!bg-white"
                 onClick={(e) => {
                     e.stopPropagation();
                     onHandleClick(id, null, 'target');
@@ -38,7 +35,7 @@ export function VariableNode({ id, data, selected }: NodeProps<AppNode>) {
             <Handle
                 type="source"
                 position={Position.Bottom}
-                className={cn("!bg-purple-500", isTargetPending && "pending")}
+                className="!bg-white"
                 onClick={(e) => {
                     e.stopPropagation();
                     onHandleClick(id, null, 'source');
